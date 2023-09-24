@@ -1,0 +1,8 @@
+django==4.2.5
+djangorestframework==3.14.0
+django-rest-passwordreset==1.3.0
+psycopg2-binary==2.9.7
+pyyaml==6.0.1
+ujson==5.8.0
+requests==2.31.0
+python-dotenv==1.0.0
