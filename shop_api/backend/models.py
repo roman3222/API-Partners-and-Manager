@@ -129,6 +129,9 @@ class Category(models.Model):
         verbose_name = 'Категория'
         verbose_name_plural = 'Список категорий'
 
+    def __str__(self):
+        return self.name
+
 
 class Product(models.Model):
     name = models.CharField(max_length=80, verbose_name='Название')
@@ -146,7 +149,7 @@ class Product(models.Model):
 
 class ProductInfo(models.Model):
     model = models.CharField(max_length=80, verbose_name='Модель', blank=True)
-    external_id = models.PositiveIntegerField(verbose_name='Внешний ИД')
+    external_id = models.PositiveIntegerField(verbose_name='Внешний ИД', unique=True)
     product = models.ForeignKey(Product, verbose_name='Продукт', related_name='product_info', blank=True,
                                 on_delete=models.CASCADE)
     shop = models.ForeignKey(Shop, verbose_name='Магазин', related_name='product_info', blank=True,
