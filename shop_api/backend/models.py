@@ -167,7 +167,7 @@ class ProductInfo(models.Model):
         ]
 
     def __str__(self):
-        return str(self.external_id)
+        return str(self.product)
 
 
 class Parameter(models.Model):
@@ -225,8 +225,6 @@ class Cart(models.Model):
     user = models.OneToOneField(User, verbose_name='Пользователь', null=True, blank=True,
                                 on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through='CartItem', related_name='carts')
-    # quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
-    # created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Корзина'
@@ -241,12 +239,17 @@ class CartItem(models.Model):
                              on_delete=models.CASCADE, blank=True)
     product = models.ForeignKey(Product, verbose_name='Продукт', related_name='cart_items',
                                 on_delete=models.CASCADE, blank=True)
+    product_info = models.ForeignKey(ProductInfo, verbose_name='Информация о продукте', related_name='cart_product',
+                                     on_delete=models.CASCADE, blank=True, null=True)
     quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
     created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Позиция корзины'
         verbose_name_plural = 'Список позиций корзины'
+
+    def __str__(self):
+        return f'Пользователя {self.cart}'
 
 
 class Order(models.Model):
@@ -292,8 +295,7 @@ class OrderItem(models.Model):
         return quantity * price
 
     def __str__(self):
-        return (f'{self.order} - {self.product_info} - {self.quantity} - {self.price}'
-                f' - {self.sum_price()}')
+        return str(self.order)
 
 
 class ConfirmEmailToken(models.Model):

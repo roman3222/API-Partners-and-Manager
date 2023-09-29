@@ -57,7 +57,7 @@ class CategoryAdmin(admin.ModelAdmin):
         """
         return ','.join([shop.name for shop in obj.shops.all()])
 
-    get_shop_names.shorts_descriptions = 'shops'
+    get_shop_names.short_description = 'shops'
 
 
 class CartProductInline(admin.TabularInline):
@@ -157,7 +157,51 @@ class CartAdmin(admin.ModelAdmin):
     )
     list_display = ('user',)
 
-    # def get_product_names(self, obj):
-    #     return ','.join([product.name for product in obj.products.all()])
-    #
-    # get_product_names.shorts_descriptions = 'products'
+
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    """
+    Панель управлеия товарами в корзине
+    """
+
+    fieldsets = (
+        (None, {'fields': ('cart', 'product', 'quantity', 'product_info')}),
+    )
+    list_display = ('product', 'quantity', 'created_time', 'product_info_price')
+    list_filter = ('created_time',)
+    search_fields = ('product',)
+
+    def product_info_price(self, obj):
+        """
+        Метод для получения общей стоимости каждой позиции в корзине
+        """
+
+        return obj.product_info.price * obj.quantity if obj.product_info else None
+
+    product_info_price.short_description = 'Общая стоимость'
+
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    """
+    Панель управления заказом
+    """
+
+    fieldsets = (
+        (None, {'fields': ('user', 'cart', 'state', 'contacts')}),
+    )
+    list_display = ('user', 'cart', 'dt', 'state', 'contacts')
+    list_filter = ('dt',)
+    search_fields = ('user',)
+
+
+@admin.register(OrderItem)
+class OrderItemAdmin(admin.ModelAdmin):
+    """
+    Панель управления заказами
+    """
+    fieldsets = (
+        (None, {'fields': ('order', 'product_info', 'quantity', 'price')}),
+    )
+    list_display = ('order', 'product_info', 'quantity', 'price')
+    list_display_links = ('order', 'product_info')
