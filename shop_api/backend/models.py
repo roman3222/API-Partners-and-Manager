@@ -4,6 +4,7 @@ from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_rest_passwordreset.tokens import get_token_generator
+from django.contrib import admin
 
 STATE_CHOICES = (
     ('basket', 'Статус корзины'),
@@ -96,7 +97,7 @@ class User(AbstractUser):
     type = models.CharField(verbose_name='Тип пользователя', choices=USER_TYPE_CHOICES, max_length=10, default='buyer')
 
     def __str__(self):
-        return f'{self.first_name} {self.last_name}'
+        return self.username
 
     class Meta:
         verbose_name = 'Пользователь'
@@ -165,13 +166,16 @@ class ProductInfo(models.Model):
             models.UniqueConstraint(fields=['product', 'shop', 'external_id'], name='unique_product_info'),
         ]
 
+    def __str__(self):
+        return str(self.external_id)
+
 
 class Parameter(models.Model):
     name = models.CharField(max_length=80, verbose_name='Название')
 
     class Meta:
         verbose_name = 'Имя параметра'
-        verbose_name_plural = 'Список имен параметров'
+        verbose_name_plural = 'Список  имен параметров'
         ordering = ('-name',)
 
     def __str__(self):
@@ -193,6 +197,9 @@ class ProductParameter(models.Model):
             models.UniqueConstraint(fields=['product_info', 'parameter'], name='unique_product_parameter'),
         ]
 
+    def __str__(self):
+        return str(self.parameter)
+
 
 class Contacts(models.Model):
     user = models.ForeignKey(User, verbose_name='Пользователь',
@@ -211,22 +218,22 @@ class Contacts(models.Model):
         verbose_name_plural = "Список контактов пользователя"
 
     def __str__(self):
-        return f'{self.city} {self.street} {self.house}'
+        return str(self.user)
 
 
 class Cart(models.Model):
     user = models.OneToOneField(User, verbose_name='Пользователь', null=True, blank=True,
                                 on_delete=models.CASCADE)
     products = models.ManyToManyField(Product, through='CartItem', related_name='carts')
-    quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
-    created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
+    # quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
+    # created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Корзина'
         verbose_name_plural = 'Список товаров в корзине'
 
     def __str__(self):
-        return f'{self.products} - {self.quantity} - {self.created_time}'
+        return str(self.user)
 
 
 class CartItem(models.Model):
@@ -234,6 +241,8 @@ class CartItem(models.Model):
                              on_delete=models.CASCADE, blank=True)
     product = models.ForeignKey(Product, verbose_name='Продукт', related_name='cart_items',
                                 on_delete=models.CASCADE, blank=True)
+    quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
+    created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     class Meta:
         verbose_name = 'Позиция корзины'

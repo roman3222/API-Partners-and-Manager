@@ -45,7 +45,7 @@ class CategoryAdmin(admin.ModelAdmin):
     Панель управления категориями
     """
     fieldsets = (
-        (None, {'fields': ('name',)}),
+        (None, {'fields': ('name', 'shops')}),
     )
     list_display = ('name', 'get_shop_names')
     list_filter = ('shops', 'name')
@@ -60,6 +60,11 @@ class CategoryAdmin(admin.ModelAdmin):
     get_shop_names.shorts_descriptions = 'shops'
 
 
+class CartProductInline(admin.TabularInline):
+    model = CartItem
+    extra = 1
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """
@@ -71,6 +76,7 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ('category', 'name')
     list_filter = ('category', 'name')
     search_fields = ('name',)
+    inlines = [CartProductInline]
 
 
 @admin.register(ProductInfo)
@@ -78,6 +84,80 @@ class ProductInfoAdmin(admin.ModelAdmin):
     """
     Панель управления информацией о продукте
     """
+
     fieldsets = (
-        (None,)
+        (None, {'fields': ('external_id', 'model', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
     )
+    list_display = (
+        'external_id', 'model',
+        'product', 'shop',
+        'quantity', 'price',
+        'price_rrc',
+    )
+    list_filter = ('shop', 'price', 'price_rrc')
+    search_fields = ('model',)
+
+
+@admin.register(Parameter)
+class ParameterAdmin(admin.ModelAdmin):
+    """
+    Панель управления параметрами продукта
+    """
+
+    fieldsets = (
+        (None, {'fields': ('name',)}),
+    )
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
+@admin.register(ProductParameter)
+class ProductParameterAdmin(admin.ModelAdmin):
+    """
+    Панель управления параметрами продукта
+    """
+
+    fieldsets = (
+        (None, {'fields': ('product_info', 'parameter', 'value')}),
+    )
+    list_display = ('product_info', 'parameter', 'value')
+    list_filter = ('parameter',)
+
+
+@admin.register(Contacts)
+class ContactsAdmin(admin.ModelAdmin):
+    """
+    Панель управления контактами пользователей
+    """
+    fieldsets = (
+        (None, {'fields': (
+            'user', 'city',
+            'street', 'house',
+            'structure', 'building',
+            'apartment', 'phone',
+        )}),
+    )
+    list_display = (
+        'user', 'city',
+        'street', 'house',
+        'structure', 'building',
+        'apartment', 'phone'
+    )
+    search_fields = ('user', 'phone')
+
+
+@admin.register(Cart)
+class CartAdmin(admin.ModelAdmin):
+    """
+    Панель управления корзиной
+    """
+
+    fieldsets = (
+        (None, {'fields': ('user',)}),
+    )
+    list_display = ('user',)
+
+    # def get_product_names(self, obj):
+    #     return ','.join([product.name for product in obj.products.all()])
+    #
+    # get_product_names.shorts_descriptions = 'products'
