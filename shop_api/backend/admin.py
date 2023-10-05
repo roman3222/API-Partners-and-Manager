@@ -86,7 +86,7 @@ class ProductInfoAdmin(admin.ModelAdmin):
     """
 
     fieldsets = (
-        (None, {'fields': ('external_id', 'model', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
+        (None, {'fields': ('model', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
     )
     list_display = (
         'external_id', 'model',
@@ -205,3 +205,15 @@ class OrderItemAdmin(admin.ModelAdmin):
     )
     list_display = ('order', 'product_info', 'quantity', 'price')
     list_display_links = ('order', 'product_info')
+
+
+@admin.register(ConfirmEmailToken)
+class EmailTokenAdmin(admin.ModelAdmin):
+    """Панель управления подтверждения эл.почты и востановления пароля"""
+
+    fieldsets = (
+        (None, {'fields': ('user',)}),
+    )
+    list_display = ('user', 'created_at', 'key')
+    list_filter = ('created_at',)
+    search_fields = ('user',)

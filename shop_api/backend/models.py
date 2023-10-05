@@ -2,9 +2,11 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
+from django.db.models.signals import pre_save
 from django.utils.translation import gettext_lazy as _
 from django_rest_passwordreset.tokens import get_token_generator
-from django.contrib import admin
+from django.dispatch import receiver
+import random
 
 STATE_CHOICES = (
     ('basket', 'Статус корзины'),
@@ -141,7 +143,7 @@ class Product(models.Model):
 
     class Meta:
         verbose_name = 'Продукт'
-        verbose_name_plural = 'Список прподуктов'
+        verbose_name_plural = 'Список продуктов'
         ordering = ('-name',)
 
     def __str__(self):
@@ -150,7 +152,7 @@ class Product(models.Model):
 
 class ProductInfo(models.Model):
     model = models.CharField(max_length=80, verbose_name='Модель', blank=True)
-    external_id = models.PositiveIntegerField(verbose_name='Внешний ИД', unique=True)
+    external_id = models.PositiveIntegerField(verbose_name='Внешний ИД', unique=True, blank=True)
     product = models.ForeignKey(Product, verbose_name='Продукт', related_name='product_info', blank=True,
                                 on_delete=models.CASCADE)
     shop = models.ForeignKey(Shop, verbose_name='Магазин', related_name='product_info', blank=True,
@@ -168,6 +170,21 @@ class ProductInfo(models.Model):
 
     def __str__(self):
         return str(self.product)
+
+
+def generate_unique_external_id():
+    """Функция для генерации случайного значения external_id"""
+    while True:
+        external_id = random.randint(100000, 999999)
+        if not ProductInfo.objects.filter(external_id=external_id).exists():
+            return external_id
+
+
+@receiver(pre_save, sender=ProductInfo)
+def set_unique_external_id(sender, instance, **kwargs):
+    """Сигнал для генерации значения external_id"""
+    if not instance.external_id:
+        instance.external_id = generate_unique_external_id()
 
 
 class Parameter(models.Model):
