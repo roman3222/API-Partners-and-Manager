@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from models import User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter, Cart, CartItem, \
+from backend.models import User, Shop, Category, Product, ProductInfo, Parameter, ProductParameter, Cart, CartItem, \
     Order, OrderItem, Contacts
 
 

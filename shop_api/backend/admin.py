@@ -19,7 +19,7 @@ class CustomUserAdmin(UserAdmin):
         }),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
-    list_display = ('email', 'first_name', 'last_name', 'is_staff', 'is_active')
+    list_display = ('email', 'first_name', 'last_name', 'is_staff', 'is_active', 'email_confirmed', 'username')
     list_filter = ('is_active', 'email_confirmed', 'is_staff', 'is_superuser', 'type')
     search_fields = ('email',)
 
