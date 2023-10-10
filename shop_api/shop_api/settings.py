@@ -131,14 +131,15 @@ STATIC_URL = '/static/'
 
 AUTH_USER_MODEL = 'backend.User'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# EMAIL_USE_TLS = True
 
 EMAIL_HOST = os.environ.get('EMAIL_HOST')
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = os.environ.get('EMAIL_PORT')
 EMAIL_USER_SSL = os.environ.get('EMAIL_USER_SSL')
-SERVER_EMAIL = os.environ.get('SERVER_EMAIL')
+SERVER_EMAIL = EMAIL_HOST_USER
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',

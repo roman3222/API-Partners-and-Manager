@@ -32,8 +32,8 @@ class RegisterUserAccount(APIView):
                     user = user_serializer.save()
                     user.set_password(request.data['password'])
                     user.save()
-                    new_user_registered.send(sender=self.__class__, user_id=user.id)
                     token = Token.objects.create(user=user)
+                    new_user_registered.send(sender=self.__class__, user_id=user.id)
                     return JsonResponse({'Status': True, 'Created': user.username, 'Token': token.key})
                 else:
                     errors['user'] = user_serializer.errors
