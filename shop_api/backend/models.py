@@ -74,23 +74,16 @@ class User(AbstractUser):
     username_validator = UnicodeUsernameValidator()
     username = models.CharField(
         _('username'),
-        max_length=100,
+        max_length=100, unique=True,
         help_text=_('Required. 100 characters or fewer. Letters, digits and @/./+/-/_ only.'),
         validators=[username_validator],
         error_messages={
             'unique': _('A user with that username already exists'),
         },
     )
-    email_confirmed = models.BooleanField(
-        default=False,
-        verbose_name='Подтверждение почты',
-        help_text=_(
-            'Email Confirmation Status'
-        ),
-    )
     is_active = models.BooleanField(
         _('active'),
-        default=True,
+        default=False,
         help_text=_(
             'Designates whether this user should be treated as active.'
             'Unselect this instead of deleting accounts.'
