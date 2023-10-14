@@ -26,23 +26,23 @@ class UserSerializer(serializers.ModelSerializer):
 class ShopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shop
-        fields = ('id', 'name', 'state')
+        fields = ('id', 'name', 'state', 'user')
         read_only_fields = ('id',)
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ('id', 'name',)
+        fields = ('id', 'name', 'shops')
         read_only_fields = ('id',)
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True, many=True)
+    category = CategorySerializer(read_only=True)
 
     class Meta:
         model = Product
-        fields = ('category', 'name')
+        fields = ('id', 'category', 'name')
 
 
 class ProductParameterSerializer(serializers.ModelSerializer):
@@ -55,7 +55,7 @@ class ProductParameterSerializer(serializers.ModelSerializer):
 
 class ProductInfoSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
-    product_parameter = ProductParameterSerializer(read_only=True)
+    product_parameter = ProductParameterSerializer(read_only=True, many=True)
 
     class Meta:
         model = ProductInfo

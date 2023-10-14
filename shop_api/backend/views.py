@@ -4,11 +4,13 @@ from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from backend.models import ConfirmEmailToken, Category, Shop
-from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer
+from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo
+from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer
 from backend.signals import new_user_registered
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
+from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Q, Sum, F
 
 
 class RegisterUserAccount(APIView):
@@ -135,6 +137,78 @@ class ShopView(APIView):
         shops = Shop.objects.all()
         serializers_shop = ShopSerializer(shops, many=True)
         return JsonResponse({'Status': True, 'list_shops': serializers_shop.data})
+
+    def post(self, request, *args, **kwargs):
+        if 'name' in request.data:
+            if not request.user.is_authenticated:
+                return JsonResponse({'Status': False, 'Errors': 'Log in required'})
+
+            if request.user.type != 'shop':
+                return JsonResponse({'Status': False, 'Errors': 'Только для поставщиков'})
+
+            shop_data = request.data
+            shop_data['user'] = request.user.id
+            shop = ShopSerializer(data=shop_data)
+            if shop.is_valid():
+                shop.save()
+                return JsonResponse({'Status': True, 'Message': shop.data})
+            else:
+                return JsonResponse({'Status': False, 'Errors': shop.errors})
+
+        return JsonResponse({'Status': False, 'Errors': 'Не указано название магазина'})
+
+    def put(self, request, shop_id):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'})
+
+        try:
+            shop = Shop.objects.get(id=shop_id)
+        except ObjectDoesNotExist:
+            return JsonResponse({'Status': False, 'Errors': 'Магазин не найден'})
+
+        if shop.user != request.user:
+            return JsonResponse({
+                'Status':False,
+                'Errors': 'У вас нет прав доступа к этому магазину'
+            }, status=403)
+
+        shop_data = request.data
+        shop_serializer = ShopSerializer(shop, data=shop_data, partial=True)
+
+        if shop_serializer.is_valid():
+            shop_serializer.save()
+            return JsonResponse({'Status': True, 'Message': 'Магазин обновлен', 'shop': shop_serializer.data})
+        else:
+            return JsonResponse({'Status': False, 'Errors': shop_serializer.errors})
+
+
+class ProductInfoView(APIView):
+    """
+    Класс для поиска товаров
+    """
+
+    def get(self, request, *args, **kwargs):
+        query = Q(shop__state=True)
+        shop_id = request.query_params.get('shop_id')
+        category_id = request.query_params.get('category_id')
+
+        if shop_id:
+            query = query & Q(shop_id=shop_id)
+
+        if category_id:
+            query = query & Q(product__category_id=category_id)
+
+        queryset = ProductInfo.objects.filter(
+            query).select_related(
+            'shop', 'product__category').prefetch_related(
+            'product_parameters__parameter').distinct()
+
+        serializer = ProductInfoSerializer(queryset, many=True)
+
+        return Response(serializer.data)
+
+
+
 
 
 

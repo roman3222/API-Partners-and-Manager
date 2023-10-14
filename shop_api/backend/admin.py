@@ -19,7 +19,7 @@ class CustomUserAdmin(UserAdmin):
         }),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
-    list_display = ('email', 'first_name', 'last_name', 'is_staff', 'is_active', 'username')
+    list_display = ('id', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'username', 'type')
     list_filter = ('is_active', 'is_staff', 'is_superuser', 'type')
     search_fields = ('email',)
 
@@ -30,7 +30,7 @@ class ShopAdmin(admin.ModelAdmin):
     Панель управления магазином
     """
 
-    list_display = ('user', 'name', 'url', 'state')
+    list_display = ('id', 'user', 'name', 'url', 'state')
     list_editable = ('state',)
     list_filter = ('state',)
     search_fields = ('name', 'url')
