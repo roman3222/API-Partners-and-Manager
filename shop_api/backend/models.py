@@ -146,7 +146,7 @@ class Product(models.Model):
 class ProductInfo(models.Model):
     model = models.CharField(max_length=80, verbose_name='Модель', blank=True)
     external_id = models.PositiveIntegerField(verbose_name='Внешний ИД', unique=True, blank=True)
-    product = models.ForeignKey(Product, verbose_name='Продукт', related_name='product_info', blank=True,
+    product = models.ForeignKey(Product, verbose_name='Продукт', related_name='product', blank=True,
                                 on_delete=models.CASCADE)
     shop = models.ForeignKey(Shop, verbose_name='Магазин', related_name='product_info', blank=True,
                              on_delete=models.CASCADE)
@@ -234,7 +234,7 @@ class Contacts(models.Model):
 class Cart(models.Model):
     user = models.OneToOneField(User, verbose_name='Пользователь', null=True, blank=True,
                                 on_delete=models.CASCADE)
-    products = models.ManyToManyField(Product, through='CartItem', related_name='carts')
+    products_info = models.ManyToManyField(ProductInfo, through='CartItem', related_name='products')
 
     class Meta:
         verbose_name = 'Корзина'
@@ -245,13 +245,13 @@ class Cart(models.Model):
 
 
 class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, verbose_name='Корзина', related_name='cart_items',
+    cart = models.ForeignKey(Cart, verbose_name='Корзина', related_name='cart',
                              on_delete=models.CASCADE, blank=True)
-    product = models.ForeignKey(Product, verbose_name='Продукт', related_name='cart_items',
-                                on_delete=models.CASCADE, blank=True)
-    product_info = models.ForeignKey(ProductInfo, verbose_name='Информация о продукте', related_name='cart_product',
+    # product = models.ForeignKey(Product, verbose_name='Продукт', related_name='cart_product',
+    #                             on_delete=models.CASCADE, blank=True)
+    product_info = models.ForeignKey(ProductInfo, verbose_name='Информация о продукте', related_name='cart_item',
                                      on_delete=models.CASCADE, blank=True, null=True)
-    quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=0)
+    quantity = models.PositiveIntegerField(verbose_name='Количество товаров', default=1)
     created_time = models.DateTimeField(auto_now_add=True, blank=True, null=True)
 
     class Meta:

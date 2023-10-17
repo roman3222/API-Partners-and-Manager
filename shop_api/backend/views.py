@@ -4,8 +4,9 @@ from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo
-from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer
+from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem
+from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
+    CartItemSerializer, CartSerializer
 from backend.signals import new_user_registered
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
@@ -36,7 +37,11 @@ class RegisterUserAccount(APIView):
                     user.set_password(request.data['password'])
                     user.save()
                     new_user_registered.send(sender=self.__class__, user_id=user.id)
-                    return JsonResponse({'Status': True, 'Created': user.username})
+                    token, _ = Token.objects.get_or_create(user=request.user)
+                    if user.type == 'buyer':
+                        cart = Cart.objects.create(user=user)
+                    return JsonResponse({'Status': True, 'Created': user.username, 'Token': token})
+
                 else:
                     errors['user'] = user_serializer.errors
         if errors:
@@ -123,6 +128,7 @@ class CategoryView(APIView):
     """
     Класс для просмотра категорий
     """
+
     def get(self, request):
         category = Category.objects.all()
         serializer_class = CategorySerializer(category, many=True)
@@ -133,6 +139,7 @@ class ShopView(APIView):
     """
     Класс для просмотра списка магазинов
     """
+
     def get(self, request):
         shops = Shop.objects.all()
         serializers_shop = ShopSerializer(shops, many=True)
@@ -141,7 +148,7 @@ class ShopView(APIView):
     def post(self, request, *args, **kwargs):
         if 'name' in request.data:
             if not request.user.is_authenticated:
-                return JsonResponse({'Status': False, 'Errors': 'Log in required'})
+                return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
 
             if request.user.type != 'shop':
                 return JsonResponse({'Status': False, 'Errors': 'Только для поставщиков'})
@@ -168,7 +175,7 @@ class ShopView(APIView):
 
         if shop.user != request.user:
             return JsonResponse({
-                'Status':False,
+                'Status': False,
                 'Errors': 'У вас нет прав доступа к этому магазину'
             }, status=403)
 
@@ -208,10 +215,90 @@ class ProductInfoView(APIView):
         return Response(serializer.data)
 
 
+class CartView(APIView):
+    """
+    Класс для работы с корозиной пользователя
+    """
 
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
+        try:
+            cart = Cart.objects.get(user=request.user)
+        except ObjectDoesNotExist:
+            return Response({'error': 'Cart not found'}, status=404)
 
+        cart_items = CartItem.objects.filter(cart=cart).annotate(
+            total_price=Sum(F('quantity') * F('product_info__price'))
+        )
 
+        serializer = CartItemSerializer(cart_items, many=True)
 
+        return Response({'cart_items': serializer.data})
 
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
+        serializer = CartItemSerializer(data=request.data, many=True)
+        if serializer.is_valid():
+            cart_item_data = serializer.validated_data
+            cart_items = []
+
+            for item_data in cart_item_data:
+                product_info_id = item_data['product_info']
+                quantity = item_data['quantity']
+
+                try:
+                    cart = Cart.objects.get(user=request.user)
+                except ObjectDoesNotExist:
+                    return JsonResponse({'Status': False, 'Errors': 'cart not found'}, status=404)
+
+                try:
+                    product_info = ProductInfo.objects.get(id=product_info_id.id)
+                except ObjectDoesNotExist:
+                    return JsonResponse({'Status': False, 'error': 'Product Info not found'}, status=404)
+
+                cart_item, created = CartItem.objects.get_or_create(
+                    cart=cart,
+                    product_info=product_info,
+                    defaults={'quantity': quantity}
+                )
+                cart_items.append(cart_item)
+
+                if not created:
+                    cart_item.quantity += quantity
+                    cart_item.save()
+
+            serializer_item = CartItemSerializer(cart_items, many=True).data
+
+            return JsonResponse({'Status': True, 'cart_item': serializer_item})
+
+        return JsonResponse({'Status': False, 'Errors': serializer.errors}, status=400)
+
+    def patch(self, request, *args, **kwargs):
+
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+
+        cart_serializer = CartItemSerializer(data=request.data)
+        if cart_serializer.is_valid():
+            item_cart = cart_serializer.validated_data
+
+            for item in item_cart:
+                quantity = item['quantity']
+                cart_item_id = item['cart_item']
+
+                try:
+                    cart_item = CartItem.objects.get(id=cart_item_id)
+                except ObjectDoesNotExist:
+                    return JsonResponse({'Status': False, 'errors': 'cart item not found'}, status=404)
+
+                cart_item.quantity = quantity
+                cart_item.save()
+                serializer = CartItemSerializer(cart_item)
+
+                return JsonResponse({'Status': True, 'updates': serializer.data})
+
+        # return Response({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})

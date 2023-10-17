@@ -70,21 +70,21 @@ class ProductInfoSerializer(serializers.ModelSerializer):
 
 
 class CartSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    products = ProductSerializer(read_only=True, many=True)
+    # product_info = ProductInfoSerializer(read_only=True, many=True)
 
     class Meta:
         model = Cart
-        fields = ('user', 'products')
+        fields = ('user',)
 
 
 class CartItemSerializer(serializers.ModelSerializer):
-    cart = CartSerializer(read_only=True, many=True)
-    product_info = ProductInfoSerializer(read_only=True, many=True)
+    cart = CartSerializer(read_only=True)
+    total_price = serializers.IntegerField(required=False)
 
     class Meta:
         model = CartItem
-        fields = ('cart', 'product_info', 'quantity', 'created_time')
+        fields = ('id', 'cart', 'quantity', 'total_price', 'created_time', 'product_info')
+        read_only_fields = ('id',)
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

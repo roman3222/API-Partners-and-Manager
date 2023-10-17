@@ -60,11 +60,6 @@ class CategoryAdmin(admin.ModelAdmin):
     get_shop_names.short_description = 'shops'
 
 
-class CartProductInline(admin.TabularInline):
-    model = CartItem
-    extra = 1
-
-
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     """
@@ -76,7 +71,11 @@ class ProductAdmin(admin.ModelAdmin):
     list_display = ('category', 'name')
     list_filter = ('category', 'name')
     search_fields = ('name',)
-    inlines = [CartProductInline]
+
+
+class CartProductInfoInline(admin.TabularInline):
+    model = CartItem
+    extra = 1
 
 
 @admin.register(ProductInfo)
@@ -89,13 +88,14 @@ class ProductInfoAdmin(admin.ModelAdmin):
         (None, {'fields': ('model', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
     )
     list_display = (
-        'external_id', 'model',
-        'product', 'shop',
-        'quantity', 'price',
-        'price_rrc',
+        'id', 'external_id',
+        'model', 'product',
+        'shop', 'quantity',
+        'price', 'price_rrc',
     )
     list_filter = ('shop', 'price', 'price_rrc')
     search_fields = ('model',)
+    inlines = [CartProductInfoInline]
 
 
 @admin.register(Parameter)
@@ -165,11 +165,11 @@ class CartItemAdmin(admin.ModelAdmin):
     """
 
     fieldsets = (
-        (None, {'fields': ('cart', 'product', 'quantity', 'product_info')}),
+        (None, {'fields': ('cart', 'quantity', 'product_info')}),
     )
-    list_display = ('product', 'quantity', 'created_time', 'product_info_price')
+    list_display = ('id', 'product_info', 'quantity', 'created_time', 'product_info_price', 'cart')
     list_filter = ('created_time',)
-    search_fields = ('product',)
+    search_fields = ('product_info',)
 
     def product_info_price(self, obj):
         """
