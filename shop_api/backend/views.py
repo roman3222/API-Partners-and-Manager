@@ -3,8 +3,13 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 
-from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem
+from distutils.util import strtobool
+
+from requests import get
+from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem, Product, Parameter, \
+    ProductParameter
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
     CartItemSerializer, CartSerializer
 from backend.signals import new_user_registered
@@ -12,6 +17,8 @@ from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q, Sum, F
+from yaml import load as load_yaml, Loader
+from django.core.validators import URLValidator
 
 
 class RegisterUserAccount(APIView):
@@ -128,11 +135,8 @@ class CategoryView(APIView):
     """
     Класс для просмотра категорий
     """
-
-    def get(self, request):
-        category = Category.objects.all()
-        serializer_class = CategorySerializer(category, many=True)
-        return JsonResponse({'Status': True, 'list_categories': serializer_class.data})
+    category = Category.objects.all()
+    serializer_class = CategorySerializer
 
 
 class ShopView(APIView):
@@ -324,3 +328,54 @@ class CartView(APIView):
         return JsonResponse({'Status': True, 'deleted_items': deleted_items_ids})
 
 
+class PartnerUpdate(APIView):
+    """
+    Класс обновления прайса поставщиков
+    """
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+
+        if request.user.type != 'shop':
+            return JsonResponse({'Status': False, 'Errors': 'Only for partners'})
+
+        url = request.get('url')
+        if url:
+            validate_url = URLValidator()
+            try:
+                validate_url(url)
+            except ValidationError as errors:
+                return JsonResponse({'Status': False, 'Errors': errors})
+        else:
+            stream = get(url).content
+            data = load_yaml(stream, Loader=Loader)
+
+            shop, _ = Shop.objects.get_or_create(name=data['shop'], user_id=request.user.id)
+
+            for category in data['categories']:
+                category_obj, _ = Category.objects.get_or_create(id=category.id, name=category['name'])
+                category_obj.shops.add(shop.id)
+                category_obj.save()
+            ProductInfo.objects.filter(shop_id=shop.id).delete()
+
+            for item in data['goods']:
+                product, _ = Product.objects.get_or_create(name=item['name'], category_id=item['category'])
+
+                product_info = ProductInfo.objects.create(product_id=product.id,
+                                                          external_id=item['id'],
+                                                          model=item['model'],
+                                                          price=item['price'],
+                                                          price_rrc=item['price_rrc'],
+                                                          quantity=item['quantity'],
+                                                          shop_id=shop.id)
+
+                for name, value in item['parameters'].items():
+                    parameter_obj, _ = Parameter.objects.get_or_create(name=name)
+                    ProductParameter.objects.create(product_info_id=product_info.id,
+                                                    parameter_id=parameter_obj.id,
+                                                    value=value)
+
+                    return JsonResponse({'Status': True})
+
+                return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})

@@ -165,21 +165,6 @@ class ProductInfo(models.Model):
         return str(self.product)
 
 
-def generate_unique_external_id():
-    """Функция для генерации случайного значения external_id"""
-    while True:
-        external_id = random.randint(100000, 999999)
-        if not ProductInfo.objects.filter(external_id=external_id).exists():
-            return external_id
-
-
-@receiver(pre_save, sender=ProductInfo)
-def set_unique_external_id(sender, instance, **kwargs):
-    """Сигнал для генерации значения external_id"""
-    if not instance.external_id:
-        instance.external_id = generate_unique_external_id()
-
-
 class Parameter(models.Model):
     name = models.CharField(max_length=80, verbose_name='Название')
 
