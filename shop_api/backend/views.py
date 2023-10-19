@@ -278,27 +278,49 @@ class CartView(APIView):
         return JsonResponse({'Status': False, 'Errors': serializer.errors}, status=400)
 
     def patch(self, request, *args, **kwargs):
-
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
-        cart_serializer = CartItemSerializer(data=request.data)
-        if cart_serializer.is_valid():
-            item_cart = cart_serializer.validated_data
+        item_id = request.data['item_id']
 
-            for item in item_cart:
-                quantity = item['quantity']
-                cart_item_id = item['cart_item']
+        cart = Cart.objects.get(user=request.user)
 
-                try:
-                    cart_item = CartItem.objects.get(id=cart_item_id)
-                except ObjectDoesNotExist:
-                    return JsonResponse({'Status': False, 'errors': 'cart item not found'}, status=404)
+        try:
+            cart_item = CartItem.objects.get(cart=cart, id=item_id)
+        except ObjectDoesNotExist:
+            return JsonResponse({'Status': False, 'Errors': 'cart item not found'}, status=404)
 
-                cart_item.quantity = quantity
-                cart_item.save()
-                serializer = CartItemSerializer(cart_item)
+        quantity = request.data['quantity']
+        cart_item.quantity = quantity
+        cart_item.save()
 
-                return JsonResponse({'Status': True, 'updates': serializer.data})
+        item_serializer = CartItemSerializer(cart_item, partial=True)
 
-        # return Response({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+        return JsonResponse({'Status': True, 'updates': item_serializer.data})
+
+    def delete(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+
+        item_ids = request.data.get('item_id', [])
+        if not isinstance(item_ids, list):
+            item_ids = [item_ids]
+
+        if not item_ids:
+            return JsonResponse({'Status': False, 'Errors': 'No item ids provided'}, status=400)
+
+        cart = Cart.objects.get(user=request.user)
+
+        deleted_items_ids = []
+
+        for items_id in item_ids:
+            try:
+                cart_item = CartItem.objects.get(cart=cart, id=items_id)
+                cart_item.delete()
+                deleted_items_ids.append(items_id)
+            except ObjectDoesNotExist:
+                pass
+
+        return JsonResponse({'Status': True, 'deleted_items': deleted_items_ids})
+
+
