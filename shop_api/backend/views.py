@@ -9,9 +9,9 @@ from distutils.util import strtobool
 
 from requests import get
 from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem, Product, Parameter, \
-    ProductParameter
+    ProductParameter, Contacts
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
-    CartItemSerializer, CartSerializer
+    CartItemSerializer, CartSerializer, ContactsSerializer
 from backend.signals import new_user_registered
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
@@ -28,7 +28,7 @@ class RegisterUserAccount(APIView):
 
     def post(self, request, *args, **kwargs):
         errors = {}
-        if {'first_name', 'last_name', 'email', 'password', 'company', 'position', 'username'}.issubset(request.data):
+        if {'first_name', 'last_name', 'email', 'password', 'company', 'position', 'username', 'type'}.issubset(request.data):
 
             try:
                 validate_password(request.data['password'])
@@ -42,19 +42,22 @@ class RegisterUserAccount(APIView):
                 if user_serializer.is_valid():
                     user = user_serializer.save()
                     user.set_password(request.data['password'])
+                    user.type = request.data['type']
                     user.save()
                     new_user_registered.send(sender=self.__class__, user_id=user.id)
-                    token, _ = Token.objects.get_or_create(user=request.user)
+                    token = Token.objects.create(user=user)
+
                     if user.type == 'buyer':
                         cart = Cart.objects.create(user=user)
-                    return JsonResponse({'Status': True, 'Created': user.username, 'Token': token})
+
+                    return JsonResponse({'Status': True, 'Created': user.username, 'Token': str(token)})
 
                 else:
                     errors['user'] = user_serializer.errors
         if errors:
             return JsonResponse({'Status': False, 'Errors': errors})
 
-        return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
 
 
 class ConfirmEmailAccount(APIView):
@@ -72,8 +75,8 @@ class ConfirmEmailAccount(APIView):
                 token.delete()
                 return JsonResponse({'Status': True, 'Message': 'Email confirmed'})
             else:
-                return JsonResponse({'Status': False, 'Errors': 'Неправильно указан email или token'})
-        return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+                return JsonResponse({'Status': False, 'Errors': 'Incorrect email or token'})
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
 
 
 class AccountDetails(APIView):
@@ -125,10 +128,9 @@ class LoginAccount(APIView):
 
                     return JsonResponse({'Status': True, 'Token': token.key})
 
-            return JsonResponse({'Status': False, 'Errors': 'Пользователь не найден или электронная почта '
-                                                            'не подтверждена'})
+            return JsonResponse({'Status': False, 'Errors': 'User not found or e-mail unconfirmed'})
 
-        return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
 
 
 class CategoryView(APIView):
@@ -139,58 +141,13 @@ class CategoryView(APIView):
     serializer_class = CategorySerializer
 
 
-class ShopView(APIView):
+class ShopView(ListAPIView):
     """
     Класс для просмотра списка магазинов
     """
 
-    def get(self, request):
-        shops = Shop.objects.all()
-        serializers_shop = ShopSerializer(shops, many=True)
-        return JsonResponse({'Status': True, 'list_shops': serializers_shop.data})
-
-    def post(self, request, *args, **kwargs):
-        if 'name' in request.data:
-            if not request.user.is_authenticated:
-                return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
-
-            if request.user.type != 'shop':
-                return JsonResponse({'Status': False, 'Errors': 'Только для поставщиков'})
-
-            shop_data = request.data
-            shop_data['user'] = request.user.id
-            shop = ShopSerializer(data=shop_data)
-            if shop.is_valid():
-                shop.save()
-                return JsonResponse({'Status': True, 'Message': shop.data})
-            else:
-                return JsonResponse({'Status': False, 'Errors': shop.errors})
-
-        return JsonResponse({'Status': False, 'Errors': 'Не указано название магазина'})
-
-    def put(self, request, shop_id):
-        if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Errors': 'Log in is required'})
-
-        try:
-            shop = Shop.objects.get(id=shop_id)
-        except ObjectDoesNotExist:
-            return JsonResponse({'Status': False, 'Errors': 'Магазин не найден'})
-
-        if shop.user != request.user:
-            return JsonResponse({
-                'Status': False,
-                'Errors': 'У вас нет прав доступа к этому магазину'
-            }, status=403)
-
-        shop_data = request.data
-        shop_serializer = ShopSerializer(shop, data=shop_data, partial=True)
-
-        if shop_serializer.is_valid():
-            shop_serializer.save()
-            return JsonResponse({'Status': True, 'Message': 'Магазин обновлен', 'shop': shop_serializer.data})
-        else:
-            return JsonResponse({'Status': False, 'Errors': shop_serializer.errors})
+    shops = Shop.objects.filter(state=True)
+    serializer_class = ShopSerializer
 
 
 class ProductInfoView(APIView):
@@ -378,4 +335,128 @@ class PartnerUpdate(APIView):
 
                     return JsonResponse({'Status': True})
 
-                return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+                return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+
+
+class PartnerShop(APIView):
+    """
+    Класс для работы поставщика со своим магазином
+    """
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+
+        if not request.user.type != 'shop':
+            return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=403)
+
+        shop = request.user.shop
+        serializer_shop = ShopSerializer(shop)
+
+        return Response(serializer_shop.data)
+
+    def post(self, request, *args, **kwargs):
+        if 'name' in request.data:
+            if not request.user.is_authenticated:
+                return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
+
+            if request.user.type != 'shop':
+                return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=403)
+
+            shop_data = request.data
+            shop_data['user'] = request.user.id
+            shop = ShopSerializer(data=shop_data)
+            if shop.is_valid():
+                shop.save()
+                return JsonResponse({'Status': True, 'Message': shop.data})
+            else:
+                return JsonResponse({'Status': False, 'Errors': shop.errors})
+
+        return JsonResponse({'Status': False, 'Errors': 'The name of the store is not specified'})
+
+    def patch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
+
+        if request.user.type != 'shop':
+            return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=403)
+
+        try:
+            shop = Shop.objects.get(user=request.user)
+            serializer_shop = ShopSerializer(shop, data=request.data, partial=True)
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Errors': error})
+
+        try:
+            serializer_shop.is_valid()
+            serializer_shop.save()
+            return JsonResponse({'Status': True, 'updates': serializer_shop.data})
+        except ValidationError as error:
+            return JsonResponse({'Status': False, 'Errors': error})
+
+    def delete(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
+
+        try:
+            shop = Shop.objects.get(user=request.user)
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Errors': error})
+
+        shop.delete()
+
+        return JsonResponse({'Status': True})
+
+
+class ContactView(APIView):
+    """
+    Класс для работы с контактами покупателей
+    """
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'log in is required'}, status=403)
+
+        contacts = Contacts.objects.filter(user_id=request.user)
+
+        contacts_serializer = ContactsSerializer(contacts, many=True)
+
+        return Response(contacts_serializer.data)
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'log in is required'}, status=403)
+
+        if {'city', 'street', 'phone'}.issubset(request.data):
+            shop_data = request.data
+            shop_data['user'] = request.user.id
+
+            contact_serializer = ContactsSerializer(data=shop_data)
+            if contact_serializer.is_valid():
+                contact_serializer.save()
+                return JsonResponse({'Status': True, 'your contacts': contact_serializer.data})
+            else:
+                return JsonResponse({'Status': False, 'Error': contact_serializer.errors})
+
+        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'})
+
+    def delete(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+
+        items_sting = request.data.get('items')
+        if items_sting:
+            items_list = items_sting.split(',')
+            query = Q()
+            objects_deleted = False
+            for contact_id in items_list:
+                if contact_id.isdigit():
+                    query = query | Q(user_id=request.user.id, id=contact_id)
+                    objects_deleted = True
+
+            if objects_deleted:
+                deleted_count = Contacts.objects.filter(query).delete()[0]
+                return JsonResponse({'Status': True, 'Удалено объектов': deleted_count})
+
+        return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+

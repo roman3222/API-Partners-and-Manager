@@ -35,7 +35,7 @@ class ShopAdmin(admin.ModelAdmin):
     list_filter = ('state',)
     search_fields = ('name', 'url')
     fieldsets = (
-        (None, {'fields': ('name', 'url', 'state')}),
+        (None, {'fields': ('user', 'name', 'url', 'state')}),
     )
 
 

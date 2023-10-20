@@ -89,7 +89,7 @@ class User(AbstractUser):
             'Unselect this instead of deleting accounts.'
         ),
     )
-    type = models.CharField(verbose_name='Тип пользователя', choices=USER_TYPE_CHOICES, max_length=10, default='buyer')
+    type = models.CharField(verbose_name='Тип пользователя', choices=USER_TYPE_CHOICES, max_length=10)
 
     def __str__(self):
         return self.username
