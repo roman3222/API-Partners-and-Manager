@@ -218,7 +218,7 @@ class Contacts(models.Model):
 class Cart(models.Model):
     user = models.OneToOneField(User, verbose_name='Пользователь', null=True, blank=True,
                                 on_delete=models.CASCADE)
-    products_info = models.ManyToManyField(ProductInfo, through='CartItem', related_name='products')
+    products_info = models.ManyToManyField(ProductInfo, through='CartItem', related_name='products_info')
 
     class Meta:
         verbose_name = 'Корзина'

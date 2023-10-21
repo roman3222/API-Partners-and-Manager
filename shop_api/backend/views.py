@@ -17,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q, Sum, F
 from yaml import load as load_yaml, Loader
 from django.core.validators import URLValidator
+from django.db import transaction
 
 
 class RegisterUserAccount(APIView):
@@ -491,8 +492,8 @@ class OrderView(APIView):
             user=request.user
         ).prefetch_related('ordered_items__product_info__product__category',
                            'ordered_items__product_info__product_parameters__parameter').select_related(
-            'contacts').annotate(total_sum=Sum(F('ordered_items__quantity') * F(
-                'ordered_items__product_info__price'))).distinct()
+                           'contacts').annotate(total_sum=Sum(F('ordered_items__quantity') * F(
+                            'ordered_items__product_info__price'))).distinct()
 
         serializer = OrderSerializer(order, many=True)
 
@@ -502,47 +503,44 @@ class OrderView(APIView):
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
 
-        list_order = []
-
         if {'contact', 'cart_item'}.issubset(request.data):
-            cart = Cart.objects.get(user=request.user)
+            cart = Cart.objects.prefetch_related('products_info').get(user=request.user)
+            cart_item_ids = request.data.get('cart_item', [])
+            contact_id = request.data['contact']
 
-            cart_list = request.data.get('cart_item', [])
-            if not isinstance(cart_list, list):
-                cart_list = []
+            cart_items = CartItem.objects.select_related('product_info').filter(
+                cart=cart,
+                id__in=cart_item_ids
+            )
 
-            for item in cart_list:
-                try:
-                    cart_item = CartItem.objects.get(cart=cart, id=item)
-                except ObjectDoesNotExist as error:
-                    return JsonResponse({'Status': False, 'Error': error})
-
-                order, created = Order.objects.get_or_create(
-                    user_id=request.user.id,
+            with transaction.atomic():
+                order = Order.objects.create(
+                    user=request.user,
                     cart=cart,
-                    contacts_id=request.data['contact'],
+                    contacts_id=contact_id,
                     state='new'
                 )
 
-                order_item = OrderItem.objects.create(
-                    order=order, product_info=cart_item.product_info,
-                    quantity=cart_item.quantity, price=cart_item.product_info.price
-                )
+                order_items = [
+                    OrderItem(
+                        order=order,
+                        product_info=cart_item.product_info,
+                        quantity=cart_item.quantity,
+                        price=cart_item.product_info.price
+                    )
 
-                list_order.append(order_item)
+                    for cart_item in cart_items
 
-            serializer = OrderItemSerializer(list_order, many=True).data
+                ]
+
+                cart_items.delete()
+                cart_items.save()
+
+                OrderItem.objects.bulk_create(order_items)
+
             new_order_signal(sender=self.__class__, user_id=request.user.id)
+            serializer = OrderItemSerializer(order_items, many=True).data
 
             return JsonResponse({'Status': True, 'result': serializer})
 
         return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
-
-
-
-
-
-
-
-
-
