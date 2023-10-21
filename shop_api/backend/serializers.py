@@ -88,39 +88,28 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    cart_items = CartItemSerializer(read_only=True)
     product_info = ProductInfoSerializer(read_only=True)
-    sum_price = serializers.IntegerField()
 
     class Meta:
         model = OrderItem
-        fields = ('id', 'product_info', 'quantity', 'price', 'order', 'sum_price', 'cart_items')
+        fields = ('id', 'order', 'product_info', 'quantity', 'price')
         read_only_fields = ('id',)
         extra_kwargs = {
             'order': {'write_only': True}
         }
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        context = self.context
 
-        if 'cart_items' in context:
-            data.pop('order')
-        else:
-            data.pop('cart_items')
-
-        return data
+class OrderItemCreateSerializer(OrderItemSerializer):
+    product_info = ProductInfoSerializer(read_only=True)
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    ordered_items = OrderItemSerializer(read_only=True, many=True)
-    contacts = ContactsSerializer(read_only=True)
+    ordered_items = OrderItemCreateSerializer(read_only=True, many=True)
+    contact = ContactsSerializer(read_only=True)
+    cart = CartSerializer(read_only=True)
+    total_sum = serializers.IntegerField(read_only=False)
 
     class Meta:
         model = Order
-        fields = (
-            'id', 'state',
-            'ordered_items', 'contacts',
-            'dt',
-        )
+        fields = ('id', 'ordered_items', 'state', 'dt', 'cart', 'contact', 'total_sum')
         read_only_fields = ('id',)

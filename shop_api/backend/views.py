@@ -5,14 +5,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
 
-from distutils.util import strtobool
-
 from requests import get
 from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem, Product, Parameter, \
-    ProductParameter, Contacts
+    ProductParameter, Contacts, Order, OrderItem
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
-    CartItemSerializer, CartSerializer, ContactsSerializer
-from backend.signals import new_user_registered
+    CartItemSerializer, CartSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer
+from backend.signals import new_user_registered, new_order_signal
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
 from django.core.exceptions import ObjectDoesNotExist
@@ -28,7 +26,8 @@ class RegisterUserAccount(APIView):
 
     def post(self, request, *args, **kwargs):
         errors = {}
-        if {'first_name', 'last_name', 'email', 'password', 'company', 'position', 'username', 'type'}.issubset(request.data):
+        if {'first_name', 'last_name', 'email', 'password', 'company', 'position', 'username', 'type'}.issubset(
+                request.data):
 
             try:
                 validate_password(request.data['password'])
@@ -444,19 +443,106 @@ class ContactView(APIView):
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
 
-        items_sting = request.data.get('items')
-        if items_sting:
-            items_list = items_sting.split(',')
-            query = Q()
-            objects_deleted = False
-            for contact_id in items_list:
-                if contact_id.isdigit():
-                    query = query | Q(user_id=request.user.id, id=contact_id)
-                    objects_deleted = True
+        item_list = request.data.get('items', [])
+        if not isinstance(item_list, list):
+            item_list = [item_list]
 
-            if objects_deleted:
-                deleted_count = Contacts.objects.filter(query).delete()[0]
-                return JsonResponse({'Status': True, 'Удалено объектов': deleted_count})
+        query = Q()
+        objects_del = False
 
-        return JsonResponse({'Status': False, 'Errors': 'Не указаны все необходимые аргументы'})
+        for contact_id in item_list:
+            if isinstance(contact_id, int):
+                query = query | Q(user_id=request.user.id, id=contact_id)
+                objects_del = True
+
+        if objects_del:
+            deleted_count = Contacts.objects.filter(query).delete()[0]
+            return JsonResponse({'Status': True, 'Удалено объектов': deleted_count})
+
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+
+    def put(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+
+        try:
+            contact = Contacts.objects.get(user=request.user)
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Error': error})
+
+        contact_serializer = ContactsSerializer(contact, data=request.data, partial=True)
+        if contact_serializer.is_valid():
+            contact_serializer.save()
+            return JsonResponse({'Status': True, 'updates': contact_serializer.data})
+
+        return JsonResponse({'Status': False, 'Error': contact_serializer.errors})
+
+
+class OrderView(APIView):
+    """
+    Класс для получения и размещения заказа пользователями
+    """
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+
+        order = Order.objects.filter(
+            user=request.user
+        ).prefetch_related('ordered_items__product_info__product__category',
+                           'ordered_items__product_info__product_parameters__parameter').select_related(
+            'contacts').annotate(total_sum=Sum(F('ordered_items__quantity') * F(
+                'ordered_items__product_info__price'))).distinct()
+
+        serializer = OrderSerializer(order, many=True)
+
+        return JsonResponse({'Status': True, 'Order': serializer.data})
+
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+
+        list_order = []
+
+        if {'contact', 'cart_item'}.issubset(request.data):
+            cart = Cart.objects.get(user=request.user)
+
+            cart_list = request.data.get('cart_item', [])
+            if not isinstance(cart_list, list):
+                cart_list = []
+
+            for item in cart_list:
+                try:
+                    cart_item = CartItem.objects.get(cart=cart, id=item)
+                except ObjectDoesNotExist as error:
+                    return JsonResponse({'Status': False, 'Error': error})
+
+                order, created = Order.objects.get_or_create(
+                    user_id=request.user.id,
+                    cart=cart,
+                    contacts_id=request.data['contact'],
+                    state='new'
+                )
+
+                order_item = OrderItem.objects.create(
+                    order=order, product_info=cart_item.product_info,
+                    quantity=cart_item.quantity, price=cart_item.product_info.price
+                )
+
+                list_order.append(order_item)
+
+            serializer = OrderItemSerializer(list_order, many=True).data
+            new_order_signal(sender=self.__class__, user_id=request.user.id)
+
+            return JsonResponse({'Status': True, 'result': serializer})
+
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+
+
+
+
+
+
+
+
 

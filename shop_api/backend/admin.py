@@ -138,10 +138,11 @@ class ContactsAdmin(admin.ModelAdmin):
         )}),
     )
     list_display = (
-        'user', 'city',
-        'street', 'house',
-        'structure', 'building',
-        'apartment', 'phone'
+        'id', 'user',
+        'city', 'street',
+        'house', 'structure',
+        'building', 'apartment',
+        'phone'
     )
     search_fields = ('user', 'phone')
 

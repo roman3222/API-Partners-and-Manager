@@ -9,7 +9,6 @@ from django.dispatch import receiver
 import random
 
 STATE_CHOICES = (
-    ('basket', 'Статус корзины'),
     ('new', 'Новый'),
     ('confirmed', 'Подтвержден'),
     ('assebled', 'Собран'),
@@ -266,7 +265,7 @@ class Order(models.Model):
         ordering = ('-dt',)
 
     def __str__(self):
-        return str(self.dt)
+        return str(self.user)
 
 
 class OrderItem(models.Model):
@@ -283,11 +282,6 @@ class OrderItem(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['order_id', 'product_info'], name='unique_order_item')
         ]
-
-    def sum_price(self):
-        quantity = float(self.quantity)
-        price = float(self.price)
-        return quantity * price
 
     def __str__(self):
         return str(self.order)
