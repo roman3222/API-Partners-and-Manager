@@ -513,6 +513,7 @@ class OrderView(APIView):
                 id__in=cart_item_ids
             )
 
+            # Используем контекстный менеджер transaction для выполнения транзакций(всё или ничего)
             with transaction.atomic():
                 order = Order.objects.create(
                     user=request.user,
@@ -521,26 +522,31 @@ class OrderView(APIView):
                     state='new'
                 )
 
-                order_items = [
-                    OrderItem(
+                order_items = []
+                updated_product_infos = []
+
+                for cart_item in cart_items:
+                    order_item = OrderItem(
                         order=order,
                         product_info=cart_item.product_info,
                         quantity=cart_item.quantity,
                         price=cart_item.product_info.price
                     )
+                    order_items.append(order_item)
 
-                    for cart_item in cart_items
+                    # Обновляем ProductInfo
+                    updated_product_info = ProductInfo.objects.get(id=cart_item.product_info.id)
+                    updated_product_info.quantity = F('quantity') - cart_item.quantity
+                    updated_product_infos.append(updated_product_info)
 
-                ]
-
-                cart_items.delete()
-                cart_items.save()
-
+                # Сохраняем OrderItem и обновленные ProductInfo
                 OrderItem.objects.bulk_create(order_items)
+                ProductInfo.objects.bulk_update(updated_product_infos, ['quantity'])
+
+                # Удаляем позиции из CartItem которые были добавлены в OrderItem
+                cart_items.delete()
 
             new_order_signal(sender=self.__class__, user_id=request.user.id)
             serializer = OrderItemSerializer(order_items, many=True).data
 
             return JsonResponse({'Status': True, 'result': serializer})
-
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
