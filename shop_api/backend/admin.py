@@ -191,7 +191,7 @@ class OrderAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('user', 'cart', 'state', 'contacts')}),
     )
-    list_display = ('user', 'cart', 'dt', 'state', 'contacts')
+    list_display = ('id', 'user', 'cart', 'dt', 'state', 'contacts')
     list_filter = ('dt',)
     search_fields = ('user',)
 
