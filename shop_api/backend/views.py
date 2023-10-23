@@ -534,7 +534,7 @@ class OrderView(APIView):
                     )
                     order_items.append(order_item)
 
-                    # Обновляем ProductInfo
+                    # Обновляем ProductInfo(quantity)
                     updated_product_info = ProductInfo.objects.get(id=cart_item.product_info.id)
                     updated_product_info.quantity = F('quantity') - cart_item.quantity
                     updated_product_infos.append(updated_product_info)
@@ -567,7 +567,7 @@ class PartnerOrders(APIView):
             return JsonResponse({'Status': False, 'Error': 'Only for shops'}, status=403)
 
         order = Order.objects.filter(
-            ordered_items__product_info__shop__user_id=request.user.id).exclude(state='basket').prefetch_related(
+            ordered_items__product_info__shop__user_id=request.user.id).prefetch_related(
             'ordered_items__product_info__product__category',
             'ordered_items__product_info__product_parameters__parameter').select_related('contacts').annotate(
             total_sum=Sum(F('ordered_items__quantity') * F('ordered_items__product_info__price'))).distinct()
@@ -582,4 +582,26 @@ class PartnerOrders(APIView):
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
 
+        if request.user.type != 'shop':
+            return JsonResponse({'Status': False, 'Error': 'Only for partners'}, status=403)
 
+        if {'order', 'state'}.issubset(request.data):
+            state = request.data['state']
+
+            try:
+                order = Order.objects.get(id=request.data['order'])
+                user_id = order.user.id
+
+                order = Order.objects.filter(
+                    id=request.data['order'],
+                    ordered_items__product_info__shop__user_id=request.user.id,
+                ).update(state=state)
+            except ObjectDoesNotExist:
+                return JsonResponse({'Status': False, 'Error': 'Order not found'}, status=404)
+
+            new_order_signal(sender=self.__class__, user_id=user_id)
+
+            return JsonResponse({'Status': True, 'state': state})
+
+        else:
+            return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'})

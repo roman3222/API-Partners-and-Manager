@@ -37,7 +37,7 @@ def new_user_registered_signal(sender, user_id, **kwargs):
 
     msg = EmailMultiAlternatives(
         subject, text_content,
-        from_email, [to]
+        from_email, to
     )
     msg.send()
 
@@ -58,6 +58,6 @@ def new_order_signal(sender, user_id, **kwargs):
 
     msg = EmailMultiAlternatives(
         subject, text_content,
-        from_email, [to]
+        from_email, to
     )
     msg.send()
