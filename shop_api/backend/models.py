@@ -5,6 +5,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_rest_passwordreset.tokens import get_token_generator
 
+
 STATE_CHOICES = (
     ('new', 'Новый'),
     ('confirmed', 'Подтвержден'),
@@ -320,3 +321,5 @@ class ConfirmEmailToken(models.Model):
 
     def __str__(self):
         return 'Password reset token for user {user}'.format(user=self.user)
+
+

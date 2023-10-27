@@ -15,7 +15,7 @@ class ContactsSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    contacts = ContactsSerializer(read_only=True)
+    contacts = ContactsSerializer(read_only=True, many=True)
 
     class Meta:
         model = User

@@ -7,10 +7,10 @@ from rest_framework.generics import ListAPIView
 
 from requests import get
 from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem, Product, Parameter, \
-    ProductParameter, Contacts, Order, OrderItem
+    ProductParameter, Contacts, Order, OrderItem, User
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
-    CartItemSerializer, CartSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer
-from backend.signals import new_user_registered, new_order_signal
+    CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer
+from backend.signals import new_user_registered, new_order_signal, password_reset_token_created
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
 from django.core.exceptions import ObjectDoesNotExist
@@ -18,6 +18,10 @@ from django.db.models import Q, Sum, F
 from yaml import load as load_yaml, Loader
 from django.core.validators import URLValidator
 from django.db import transaction
+from django_rest_passwordreset.models import ResetPasswordToken
+from django_rest_passwordreset.views import ResetPasswordRequestToken
+from django_rest_passwordreset.views import ResetPasswordConfirm
+from django.contrib.auth import get_user_model
 
 
 class RegisterUserAccount(APIView):
@@ -45,12 +49,11 @@ class RegisterUserAccount(APIView):
                     user.type = request.data['type']
                     user.save()
                     new_user_registered.send(sender=self.__class__, user_id=user.id)
-                    token = Token.objects.create(user=user)
 
                     if user.type == 'buyer':
                         cart = Cart.objects.create(user=user)
 
-                    return JsonResponse({'Status': True, 'Created': user.username, 'Token': str(token)})
+                    return JsonResponse({'Status': True, 'Created': user.username})
 
                 else:
                     errors['user'] = user_serializer.errors
@@ -87,7 +90,9 @@ class AccountDetails(APIView):
     def get(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'log in required'}, status=403)
-        serializer = UserSerializer(request.user)
+
+        queryset = User.objects.get(id=request.user.id)
+        serializer = UserSerializer(queryset)
         return Response(serializer.data)
 
     def post(self, request, *args, **kwargs):
@@ -95,9 +100,12 @@ class AccountDetails(APIView):
             return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
 
         if 'password' in request.data:
+            password = request.data['password']
+
             errors = {}
+
             try:
-                validate_password(request.data['password'])
+                validate_password(password)
             except ValidationError as password_error:
                 error_array = []
                 for item in password_error:
@@ -108,7 +116,7 @@ class AccountDetails(APIView):
         user_serializer = UserSerializer(request.user, data=request.data, partial=True)
         if user_serializer.is_valid():
             user_serializer.save()
-            return JsonResponse({'Status': True})
+            return JsonResponse({'Status': True, 'Data': user_serializer.data})
         else:
             return JsonResponse({'Status': False, 'Errors': user_serializer.errors})
 
@@ -605,3 +613,56 @@ class PartnerOrders(APIView):
 
         else:
             return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'})
+
+
+class PasswordReset(ResetPasswordRequestToken):
+    """
+    Класс для сброса пароля пользователя
+    """
+
+    def create(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse({'Status': False, 'Error': 'Log in is required'})
+
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data['email']
+            try:
+                user = get_user_model().objects.filter(email=email).first()
+            except ObjectDoesNotExist as error:
+                return JsonResponse({'Status': False, 'Error': error})
+
+            password_reset_token_created(sender=self.__class__, instance=user)
+
+        return JsonResponse({'Status': False, 'Error': serializer.errors})
+
+
+class PasswordResetConfirm(ResetPasswordConfirm):
+    """
+    Класс для подтверждения сброса пароля
+    """
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            value_token = serializer.validated_data['token']
+            password = serializer.validated_data['password']
+            password_confirm = request.data['password_confirm']
+
+            if not password == password_confirm:
+                return JsonResponse({'Status': False, 'Error': 'Поле password не совпадает с полем password_confirm'})
+
+            try:
+                token = ResetPasswordToken.objects.get(key=value_token)
+            except ObjectDoesNotExist as error:
+                return JsonResponse({'Status': False, 'Error': error})
+
+            if token:
+                user = token.user
+                user.set_password(password)
+                user.save()
+                token.delete()
+
+                return JsonResponse({'Status': True, 'message': 'Password has been reset successfully.'})
+
+            return JsonResponse({'Status': False, 'Error': 'The token has expired.'}, status=400)
