@@ -149,13 +149,15 @@ class CategoryView(APIView):
     serializer_class = CategorySerializer
 
 
-class ShopView(ListAPIView):
+class ShopView(APIView):
     """
     Класс для просмотра списка магазинов
     """
 
-    shops = Shop.objects.filter(state=True)
-    serializer_class = ShopSerializer
+    def get(self, request, *args, **kwargs):
+        shops = Shop.objects.filter(state=True)
+        serializer = ShopSerializer(shops, many=True)
+        return Response(serializer.data)
 
 
 class ProductInfoView(APIView):
@@ -355,7 +357,7 @@ class PartnerShop(APIView):
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
-        if not request.user.type != 'shop':
+        if request.user.type != 'shop':
             return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=403)
 
         shop = request.user.shop
