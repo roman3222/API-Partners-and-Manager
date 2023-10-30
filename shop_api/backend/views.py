@@ -23,11 +23,16 @@ from django_rest_passwordreset.views import ResetPasswordRequestToken
 from django_rest_passwordreset.views import ResetPasswordConfirm
 from django.contrib.auth import get_user_model
 
+from rest_framework.permissions import AllowAny, IsAuthenticated
+
 
 class RegisterUserAccount(APIView):
     """
     Регистрацция нового пользователя
     """
+
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         errors = {}
@@ -60,7 +65,7 @@ class RegisterUserAccount(APIView):
         if errors:
             return JsonResponse({'Status': False, 'Errors': errors})
 
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'}, status=404)
 
 
 class ConfirmEmailAccount(APIView):
@@ -76,10 +81,11 @@ class ConfirmEmailAccount(APIView):
                 token.user.is_active = True
                 token.user.save()
                 token.delete()
-                return JsonResponse({'Status': True, 'Message': 'Email confirmed'})
-            else:
-                return JsonResponse({'Status': False, 'Errors': 'Incorrect email or token'})
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+                return JsonResponse({'Status': True, 'Message': 'Email confirmed'}, status=200)
+
+            return JsonResponse({'Status': False, 'Errors': 'Incorrect email or token'}, status=404)
+
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=404)
 
 
 class AccountDetails(APIView):
@@ -134,19 +140,21 @@ class LoginAccount(APIView):
                 if user.is_active:
                     token, _ = Token.objects.get_or_create(user=user)
 
-                    return JsonResponse({'Status': True, 'Token': token.key})
+                    return JsonResponse({'Status': True, 'Token': token.key}, status=200)
 
-            return JsonResponse({'Status': False, 'Errors': 'User not found or e-mail unconfirmed'})
+            return JsonResponse({'Status': False, 'Errors': 'User not found or e-mail unconfirmed'}, status=400)
 
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=404)
 
 
 class CategoryView(APIView):
     """
     Класс для просмотра категорий
     """
-    category = Category.objects.all()
-    serializer_class = CategorySerializer
+    def get(self, request, *args, **kwargs):
+        category = Category.objects.all()
+        serializer = CategorySerializer(category, many=True)
+        return Response(serializer.data)
 
 
 class ShopView(APIView):

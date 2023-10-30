@@ -5,6 +5,8 @@ from backend.views import RegisterUserAccount, ConfirmEmailAccount, AccountDetai
     ShopView, ProductInfoView, CartView, PartnerShop, ContactView, OrderView, PartnerOrders, PasswordReset, \
     PasswordResetConfirm
 
+from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+
 app_name = 'backend'
 
 urlpatterns = [
@@ -22,5 +24,4 @@ urlpatterns = [
     path('partner/orders', PartnerOrders.as_view(), name='partner_orders'),
     path('password_reset', PasswordReset.as_view(), name='password_reset'),
     path('password_reset/confirm', PasswordResetConfirm.as_view(), name='reset_confirm'),
-
 ]

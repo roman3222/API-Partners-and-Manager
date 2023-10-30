@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_rest_passwordreset',
     'rest_framework.authtoken',
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -148,11 +149,22 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
     ),
 
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
+
     # 'DEFAULT_PERMISSION_CLASSES': [
     #     'rest_framework.permissions.IsAuthenticated',
     #     'rest_framework.permissions.AllowAny',
     # ]
 
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'API for manager and partners',
+    'DESCRIPTION': 'The application is designed automate purchases in a retail chain.'
+                   'The users of the service are a buyer (a manager of a retail chain '
+                   'who purchases goods for sale in a store) and a supplier of goods.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': True,
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

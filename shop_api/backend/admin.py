@@ -85,7 +85,7 @@ class ProductInfoAdmin(admin.ModelAdmin):
     """
 
     fieldsets = (
-        (None, {'fields': ('model', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
+        (None, {'fields': ('model', 'external_id', 'product', 'shop', 'quantity', 'price', 'price_rrc')}),
     )
     list_display = (
         'id', 'external_id',
