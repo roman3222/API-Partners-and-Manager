@@ -10,7 +10,7 @@ from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart,
     ProductParameter, Contacts, Order, OrderItem, User
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
     CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer
-from backend.signals import new_user_registered, new_order_signal, password_reset_token_created
+from backend.signals import new_user_registered, password_reset_token_created, new_order_signal
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
 from django.core.exceptions import ObjectDoesNotExist
@@ -23,8 +23,6 @@ from django_rest_passwordreset.views import ResetPasswordRequestToken
 from django_rest_passwordreset.views import ResetPasswordConfirm
 from django.contrib.auth import get_user_model
 
-from rest_framework.permissions import AllowAny, IsAuthenticated
-
 
 class RegisterUserAccount(APIView):
     """
@@ -32,7 +30,6 @@ class RegisterUserAccount(APIView):
     """
 
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
         errors = {}
@@ -642,7 +639,7 @@ class PasswordReset(ResetPasswordRequestToken):
             except ObjectDoesNotExist as error:
                 return JsonResponse({'Status': False, 'Error': error})
 
-            password_reset_token_created(sender=self.__class__, instance=user)
+            password_reset_token_created.send(sender=self.__class__, instance=user)
 
         return JsonResponse({'Status': False, 'Error': serializer.errors})
 
