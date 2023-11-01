@@ -3,6 +3,8 @@ from rest_framework import serializers
 from backend.models import User, Shop, Category, Product, ProductInfo, ProductParameter, Cart, CartItem, \
     Order, OrderItem, Contacts
 
+from rest_framework.authtoken.models import Token
+
 
 class ContactsSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,7 +21,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'company', 'position', 'contacts', 'is_active')
+        fields = ('id', 'username', 'first_name', 'last_name', 'email', 'company', 'position', 'contacts', 'is_active',
+                  'type', 'password')
         read_only_fields = ('id', 'is_active')
 
 
@@ -113,3 +116,20 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ('id', 'ordered_items', 'state', 'dt', 'cart', 'contact', 'total_sum')
         read_only_fields = ('id',)
+
+
+class ConfirmEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    token = serializers.CharField()
+
+
+class LoginUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField()
+
+
+class TokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Token
+        fields = ('key',)
+        read_only_fields = ('key',)

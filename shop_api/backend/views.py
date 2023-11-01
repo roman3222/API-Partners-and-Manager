@@ -1,15 +1,18 @@
+import string
+
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
+from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView
 
 from requests import get
 from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart, CartItem, Product, Parameter, \
     ProductParameter, Contacts, Order, OrderItem, User
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
-    CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer
+    CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer, ConfirmEmailSerializer, \
+    LoginUserSerializer, TokenSerializer
 from backend.signals import new_user_registered, password_reset_token_created, new_order_signal
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
@@ -22,14 +25,27 @@ from django_rest_passwordreset.models import ResetPasswordToken
 from django_rest_passwordreset.views import ResetPasswordRequestToken
 from django_rest_passwordreset.views import ResetPasswordConfirm
 from django.contrib.auth import get_user_model
+from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter
 
 
+@extend_schema(tags=['Users'])
+@extend_schema_view(
+    post=extend_schema(
+        request=UserSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(response=UserSerializer,
+                                                description='Created'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)')
+        },
+        summary='Отправить данные для регистрации'
+    )
+)
 class RegisterUserAccount(APIView):
     """
     Регистрацция нового пользователя
     """
-
-    serializer_class = UserSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         errors = {}
@@ -48,27 +64,41 @@ class RegisterUserAccount(APIView):
                 if user_serializer.is_valid():
                     user = user_serializer.save()
                     user.set_password(request.data['password'])
-                    user.type = request.data['type']
+                    # user.type = request.data['type']
                     user.save()
                     new_user_registered.send(sender=self.__class__, user_id=user.id)
 
                     if user.type == 'buyer':
                         cart = Cart.objects.create(user=user)
 
-                    return JsonResponse({'Status': True, 'Created': user.username})
+                    return JsonResponse({'Status': True, 'Created': user_serializer.data})
 
                 else:
                     errors['user'] = user_serializer.errors
         if errors:
-            return JsonResponse({'Status': False, 'Errors': errors})
+            return JsonResponse({'Status': False, 'Errors': errors}, status=400)
 
-        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'}, status=404)
+        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'}, status=400)
 
 
+@extend_schema(tags=['Users'])
+@extend_schema_view(
+    post=extend_schema(
+        request=ConfirmEmailSerializer,
+        description='В теле запроса необходимо передать email и token',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description="Email confirmed"),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description="Bad request(something invalid)"),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        },
+        summary="Подтверждение электронной почты пользователя"
+    )
+)
 class ConfirmEmailAccount(APIView):
     """
     Подтверждение электронной почты
     """
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         if {'email', 'token'}.issubset(request.data):
@@ -80,11 +110,33 @@ class ConfirmEmailAccount(APIView):
                 token.delete()
                 return JsonResponse({'Status': True, 'Message': 'Email confirmed'}, status=200)
 
-            return JsonResponse({'Status': False, 'Errors': 'Incorrect email or token'}, status=404)
+            return JsonResponse({'Status': False, 'Errors': 'Incorrect email or token'}, status=400)
 
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=404)
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=400)
 
 
+@extend_schema(tags=['Users'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить информацию о своём профиле',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='User data'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Токен не передан или токен неверный'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    post=extend_schema(
+        summary='Изменить данные профиля',
+        request=UserSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(response=UserSerializer,
+                                                description='Confirmed Update'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Токен не передан или токен неверный'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)')
+
+        }
+    )
+)
 class AccountDetails(APIView):
     """
     Класс для работы с данными пользователя
@@ -92,7 +144,7 @@ class AccountDetails(APIView):
 
     def get(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'log in required'}, status=401)
 
         queryset = User.objects.get(id=request.user.id)
         serializer = UserSerializer(queryset)
@@ -113,7 +165,7 @@ class AccountDetails(APIView):
                 error_array = []
                 for item in password_error:
                     error_array.append(item)
-                return JsonResponse({'Status': False, 'Errors': {'password': error_array}})
+                return JsonResponse({'Status': False, 'Errors': {'password': error_array}}, status=400)
             else:
                 request.user.set_password(request.data['password'])
         user_serializer = UserSerializer(request.user, data=request.data, partial=True)
@@ -121,13 +173,28 @@ class AccountDetails(APIView):
             user_serializer.save()
             return JsonResponse({'Status': True, 'Data': user_serializer.data})
         else:
-            return JsonResponse({'Status': False, 'Errors': user_serializer.errors})
+            return JsonResponse({'Status': False, 'Errors': user_serializer.errors}, status=400)
 
 
+@extend_schema(tags=['Users'])
+@extend_schema_view(
+    post=extend_schema(
+        summary='Log in',
+        request=LoginUserSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(response=TokenSerializer,
+                                                description='Your Token'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='User not found')
+
+        }
+    )
+)
 class LoginAccount(APIView):
     """
     Класс для авторизации пользователя
     """
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         if {'email', 'password'}.issubset(request.data):
@@ -139,25 +206,50 @@ class LoginAccount(APIView):
 
                     return JsonResponse({'Status': True, 'Token': token.key}, status=200)
 
-            return JsonResponse({'Status': False, 'Errors': 'User not found or e-mail unconfirmed'}, status=400)
+            return JsonResponse({'Status': False, 'Errors': 'User not found or e-mail unconfirmed'}, status=404)
 
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=404)
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=400)
 
 
+@extend_schema(tags=['Categories'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить список категорий',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(CategorySerializer,
+                                                description='Status: True'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    )
+)
 class CategoryView(APIView):
     """
     Класс для просмотра категорий
     """
+    permission_classes = [AllowAny]
+
     def get(self, request, *args, **kwargs):
         category = Category.objects.all()
         serializer = CategorySerializer(category, many=True)
         return Response(serializer.data)
 
 
+@extend_schema(tags=['Shops'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить список магазинов',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ShopSerializer,
+                                                description='OK'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(description='None')
+        }
+    )
+)
 class ShopView(APIView):
     """
     Класс для просмотра списка магазинов
     """
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         shops = Shop.objects.filter(state=True)
@@ -165,10 +257,39 @@ class ShopView(APIView):
         return Response(serializer.data)
 
 
+@extend_schema(tags=['Products'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить информацию о  продуктах',
+        parameters=[
+            OpenApiParameter(
+                name='shop_id',
+                location=OpenApiParameter.QUERY,
+                required=False,
+                type=int
+            ),
+            OpenApiParameter(
+                name='category_id',
+                location=OpenApiParameter.QUERY,
+                required=False,
+                type=int
+            )
+        ],
+
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ProductInfoSerializer,
+                                                description='OK'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found')
+        }
+    )
+)
 class ProductInfoView(APIView):
     """
     Класс для поиска товаров
     """
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
         query = Q(shop__state=True)
@@ -181,16 +302,34 @@ class ProductInfoView(APIView):
         if category_id:
             query = query & Q(product__category_id=category_id)
 
-        queryset = ProductInfo.objects.filter(
-            query).select_related(
-            'shop', 'product__category').prefetch_related(
-            'product_parameters__parameter').distinct()
+        try:
+            queryset = ProductInfo.objects.filter(
+                query).select_related(
+                'shop', 'product__category').prefetch_related(
+                'product_parameters__parameter').distinct()
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Error': error}, status=404)
 
         serializer = ProductInfoSerializer(queryset, many=True)
 
         return Response(serializer.data)
 
 
+@extend_schema(tags=['Cart User'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить список продуктов в корзине',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(CartItemSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Cart not found')
+        }
+    ),
+    post=extend_schema(
+
+    )
+)
 class CartView(APIView):
     """
     Класс для работы с корозиной пользователя

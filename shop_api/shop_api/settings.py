@@ -165,6 +165,9 @@ SPECTACULAR_SETTINGS = {
                    'who purchases goods for sale in a store) and a supplier of goods.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': True,
+    'DEFAULT_COMPONENTS': {
+        'schemas': {'MyCustomSchema': {'type': 'object', 'properties': {'field1': {'type': 'string'}}}},
+    }
 }
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
