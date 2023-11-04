@@ -133,3 +133,17 @@ class TokenSerializer(serializers.ModelSerializer):
         model = Token
         fields = ('key',)
         read_only_fields = ('key',)
+
+
+class CartSchemaSerializer(serializers.Serializer):
+    product_info = serializers.IntegerField()
+    quantity = serializers.IntegerField()
+
+
+class CartItemSchemaSerializer(serializers.Serializer):
+    item_id = serializers.IntegerField()
+    quantity = serializers.IntegerField()
+
+
+class LoadPartnerSerializer(serializers.Serializer):
+    url = serializers.URLField()

@@ -12,7 +12,8 @@ from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart,
     ProductParameter, Contacts, Order, OrderItem, User
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
     CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer, ConfirmEmailSerializer, \
-    LoginUserSerializer, TokenSerializer
+    LoginUserSerializer, TokenSerializer, CartSchemaSerializer, CartItemSchemaSerializer, \
+    LoadPartnerSerializer
 from backend.signals import new_user_registered, password_reset_token_created, new_order_signal
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
@@ -26,7 +27,7 @@ from django_rest_passwordreset.views import ResetPasswordRequestToken
 from django_rest_passwordreset.views import ResetPasswordConfirm
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import AllowAny
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse, OpenApiParameter, OpenApiExample
 
 
 @extend_schema(tags=['Users'])
@@ -327,8 +328,57 @@ class ProductInfoView(APIView):
         }
     ),
     post=extend_schema(
+        summary='Добавить продукты в корзину',
+        request=CartSchemaSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(CartItemSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found')
+        },
+        examples=[
+            OpenApiExample(
+                "Post Example",
+                description='Body for example',
+                value=
+                [
+                    {"product_info": 3, "quantity": 10},
+                    {"product_info": 2, "quantity": 15}
+                ],
+            ),
+        ],
+    ),
+    patch=extend_schema(
+        summary='Изменить количество продуктов в корзине',
+        request=CartItemSchemaSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(CartItemSerializer,
+                                                description='OK'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    delete=extend_schema(
+        summary='Удалить продукты из корзины',
+        responses={
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(description='OK'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization')
+        },
+        parameters=[
+            OpenApiParameter(
+                name='item_id',
+                location=OpenApiParameter.QUERY,
+                description='id cart_item',
+                required=True,
+                type=int
+            )
+        ]
 
-    )
+    ),
 )
 class CartView(APIView):
     """
@@ -336,6 +386,9 @@ class CartView(APIView):
     """
 
     def get(self, request, *args, **kwargs):
+        """
+        Список продуктов в корзине
+        """
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
@@ -353,6 +406,9 @@ class CartView(APIView):
         return Response({'cart_items': serializer.data})
 
     def post(self, request, *args, **kwargs):
+        """
+        Добавить продукты в корзину
+        """
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
 
@@ -393,8 +449,11 @@ class CartView(APIView):
         return JsonResponse({'Status': False, 'Errors': serializer.errors}, status=400)
 
     def patch(self, request, *args, **kwargs):
+        """
+        Изменить количество
+        """
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=401)
 
         item_id = request.data['item_id']
 
@@ -406,39 +465,51 @@ class CartView(APIView):
             return JsonResponse({'Status': False, 'Errors': 'cart item not found'}, status=404)
 
         quantity = request.data['quantity']
-        cart_item.quantity = quantity
-        cart_item.save()
+        if quantity < 1:
+            cart_item.delete()
+            return JsonResponse({'Status': True, 'message': 'Cart item was delete'}, status=201)
 
-        item_serializer = CartItemSerializer(cart_item, partial=True)
+        else:
+            cart_item.quantity = quantity
+            cart_item.save()
 
-        return JsonResponse({'Status': True, 'updates': item_serializer.data})
+            item_serializer = CartItemSerializer(cart_item, partial=True)
+
+            return JsonResponse({'Status': True, 'updates': item_serializer.data})
 
     def delete(self, request, *args, **kwargs):
+        """
+        Удалить продукты из корзины
+        """
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
-
-        item_ids = request.data.get('item_id', [])
-        if not isinstance(item_ids, list):
-            item_ids = [item_ids]
-
-        if not item_ids:
-            return JsonResponse({'Status': False, 'Errors': 'No item ids provided'}, status=400)
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=401)
 
         cart = Cart.objects.get(user=request.user)
 
-        deleted_items_ids = []
+        item_id = request.query_params.get('item_id')
 
-        for items_id in item_ids:
-            try:
-                cart_item = CartItem.objects.get(cart=cart, id=items_id)
-                cart_item.delete()
-                deleted_items_ids.append(items_id)
-            except ObjectDoesNotExist:
-                pass
+        try:
+            cart_item = CartItem.objects.get(cart=cart, id=item_id)
+            cart_item.delete()
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Error': error}, status=404)
 
-        return JsonResponse({'Status': True, 'deleted_items': deleted_items_ids})
+        return JsonResponse({'Status': True}, status=204)
 
 
+@extend_schema(tags=['Partner'])
+@extend_schema_view(
+    post=extend_schema(
+        summary='Загрузка данных',
+        request=LoadPartnerSerializer(),
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='OK'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    )
+)
 class PartnerUpdate(APIView):
     """
     Класс обновления прайса поставщиков
@@ -446,7 +517,7 @@ class PartnerUpdate(APIView):
 
     def post(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=403)
+            return JsonResponse({'Status': False, 'Errors': 'Log in is required'}, status=401)
 
         if request.user.type != 'shop':
             return JsonResponse({'Status': False, 'Errors': 'Only for partners'})
@@ -492,6 +563,41 @@ class PartnerUpdate(APIView):
                 return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
 
 
+@extend_schema(tags=['Partner'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить данные магазина',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ShopSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found')
+        }
+    ),
+    post=extend_schema(
+        summary='Создать магазин',
+        request=ShopSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ShopSerializer,
+                                                description='Created'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)')
+        }
+    ),
+    patch=extend_schema(
+        summary='Изменить поля магазина',
+        request=ShopSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ShopSerializer,
+                                                description='Update'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+
+    )
+)
 class PartnerShop(APIView):
     """
     Класс для работы поставщика со своим магазином
@@ -512,10 +618,10 @@ class PartnerShop(APIView):
     def post(self, request, *args, **kwargs):
         if 'name' in request.data:
             if not request.user.is_authenticated:
-                return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
+                return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=401)
 
             if request.user.type != 'shop':
-                return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=403)
+                return JsonResponse({'Status': False, 'Errors': 'Only for partners'}, status=401)
 
             shop_data = request.data
             shop_data['user'] = request.user.id
@@ -524,9 +630,9 @@ class PartnerShop(APIView):
                 shop.save()
                 return JsonResponse({'Status': True, 'Message': shop.data})
             else:
-                return JsonResponse({'Status': False, 'Errors': shop.errors})
+                return JsonResponse({'Status': False, 'Errors': shop.errors}, status=400)
 
-        return JsonResponse({'Status': False, 'Errors': 'The name of the store is not specified'})
+        return JsonResponse({'Status': False, 'Errors': 'The name of the store is not specified'}, status=400)
 
     def patch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:

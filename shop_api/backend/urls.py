@@ -3,7 +3,7 @@ from django_rest_passwordreset.views import reset_password_request_token, reset_
 
 from backend.views import RegisterUserAccount, ConfirmEmailAccount, AccountDetails, LoginAccount, CategoryView, \
     ShopView, ProductInfoView, CartView, PartnerShop, ContactView, OrderView, PartnerOrders, PasswordReset, \
-    PasswordResetConfirm
+    PasswordResetConfirm, PartnerUpdate
 
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 
@@ -21,6 +21,7 @@ urlpatterns = [
     path('partner/shop', PartnerShop.as_view(), name='partner_shop'),
     path('user/contacts', ContactView.as_view(), name='user_contact'),
     path('user/order', OrderView.as_view(), name='user_order'),
+    path('partner/load', PartnerUpdate.as_view(), name='load_data'),
     path('partner/orders', PartnerOrders.as_view(), name='partner_orders'),
     path('password_reset', PasswordReset.as_view(), name='password_reset'),
     path('password_reset/confirm', PasswordResetConfirm.as_view(), name='reset_confirm'),
