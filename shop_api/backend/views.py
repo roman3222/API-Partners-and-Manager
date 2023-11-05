@@ -586,7 +586,11 @@ class PartnerUpdate(APIView):
     ),
     patch=extend_schema(
         summary='Изменить поля магазина',
-        request=ShopSerializer,
+        request=ShopSerializer(),
+        description='Поля для изменения: '
+                    'name - название магазина; '
+                    'url - ссылка; '
+                    'state - статус приёма заказов;',
         responses={
             status.HTTP_200_OK: OpenApiResponse(ShopSerializer,
                                                 description='Update'),
@@ -594,6 +598,16 @@ class PartnerUpdate(APIView):
             status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request(something invalid)'),
             status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found'),
             status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+
+    ),
+    delete=extend_schema(
+        summary='Удалить магазин',
+        description='Требует быть авторизованным пользователем без передачи query параметров и json в теле запроса',
+        responses={
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Shop is not found')
         }
 
     )
@@ -650,24 +664,88 @@ class PartnerShop(APIView):
         try:
             serializer_shop.is_valid()
             serializer_shop.save()
-            return JsonResponse({'Status': True, 'updates': serializer_shop.data})
+            return JsonResponse({'Status': True, 'updates': serializer_shop.data}, status=200)
         except ValidationError as error:
             return JsonResponse({'Status': False, 'Errors': error})
 
     def delete(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Errors': 'Log in required'}, status=401)
 
         try:
             shop = Shop.objects.get(user=request.user)
         except ObjectDoesNotExist as error:
-            return JsonResponse({'Status': False, 'Errors': error})
+            return JsonResponse({'Status': False, 'Errors': error}, status=404)
 
         shop.delete()
 
-        return JsonResponse({'Status': True})
+        return JsonResponse({'Status': True}, status=204)
 
 
+@extend_schema(tags=['Contacts'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить контактные данные',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ContactsSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    post=extend_schema(
+        summary='Создать контактные данные',
+        description='Обязательные поля: city; street; phone;',
+        request=ContactsSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ContactsSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request (something invalid)'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    put=extend_schema(
+        summary='Изменить контактные данные',
+        request=ContactsSerializer,
+        parameters=[
+            OpenApiParameter(
+                name='contact_id',
+                location=OpenApiParameter.QUERY,
+                description='id your contact',
+                required=True,
+                type=int
+            )
+        ],
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(ContactsSerializer,
+                                                description='Update'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request (something invalid)'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Contact not found'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+
+    ),
+    delete=extend_schema(
+        summary='Удалить контакт/ты',
+        parameters=[
+            OpenApiParameter(
+                name='contact_id',
+                location=OpenApiParameter.QUERY,
+                description='id contact for delete',
+                required=True,
+                type=int
+            )
+        ],
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='Deleted'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Contact not found'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    )
+)
 class ContactView(APIView):
     """
     Класс для работы с контактами покупателей
@@ -685,7 +763,7 @@ class ContactView(APIView):
 
     def post(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'log in is required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'log in is required'}, status=401)
 
         if {'city', 'street', 'phone'}.issubset(request.data):
             shop_data = request.data
@@ -694,49 +772,44 @@ class ContactView(APIView):
             contact_serializer = ContactsSerializer(data=shop_data)
             if contact_serializer.is_valid():
                 contact_serializer.save()
-                return JsonResponse({'Status': True, 'your contacts': contact_serializer.data})
+                return JsonResponse({'Status': True, 'your contacts': contact_serializer.data}, status=200)
             else:
-                return JsonResponse({'Status': False, 'Error': contact_serializer.errors})
+                return JsonResponse({'Status': False, 'Error': contact_serializer.errors}, status=400)
 
-        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'})
+        return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'}, status=400)
 
     def delete(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=401)
 
-        item_list = request.data.get('items', [])
-        if not isinstance(item_list, list):
-            item_list = [item_list]
+        contact_id = request.query_params.get('contact_id')
 
-        query = Q()
-        objects_del = False
+        try:
+            contact = Contacts.objects.get(user=request.user.id, id=contact_id)
+        except ObjectDoesNotExist as error:
+            return JsonResponse({'Status': False, 'Error': error}, status=404)
 
-        for contact_id in item_list:
-            if isinstance(contact_id, int):
-                query = query | Q(user_id=request.user.id, id=contact_id)
-                objects_del = True
+        contact.delete()
 
-        if objects_del:
-            deleted_count = Contacts.objects.filter(query).delete()[0]
-            return JsonResponse({'Status': True, 'Удалено объектов': deleted_count})
-
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+        return JsonResponse({'Status': True}, status=204)
 
     def put(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=401)
+
+        contact_id = request.query_params.get('contact_id')
 
         try:
-            contact = Contacts.objects.get(user=request.user)
+            contact = Contacts.objects.get(user=request.user, id=contact_id)
         except ObjectDoesNotExist as error:
-            return JsonResponse({'Status': False, 'Error': error})
+            return JsonResponse({'Status': False, 'Error': error}, status=404)
 
         contact_serializer = ContactsSerializer(contact, data=request.data, partial=True)
         if contact_serializer.is_valid():
             contact_serializer.save()
             return JsonResponse({'Status': True, 'updates': contact_serializer.data})
 
-        return JsonResponse({'Status': False, 'Error': contact_serializer.errors})
+        return JsonResponse({'Status': False, 'Error': contact_serializer.errors}, status=400)
 
 
 class OrderView(APIView):

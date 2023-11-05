@@ -10,10 +10,10 @@ class ContactsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contacts
         fields = ('id', 'city', 'street', 'house', 'structure', 'building', 'apartment', 'user', 'phone')
-        read_only_fields = ('id',)
-        extra_kwargs = {
-            'user': {'write_only': True}
-        }
+        read_only_fields = ('id', 'user')
+        # extra_kwargs = {
+        #     'user': {'write_only': True}
+        # }
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -30,7 +30,7 @@ class ShopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shop
         fields = ('id', 'name', 'state', 'user', 'url')
-        read_only_fields = ('id',)
+        read_only_fields = ('id', 'user')
 
 
 class CategorySerializer(serializers.ModelSerializer):
