@@ -147,3 +147,13 @@ class CartItemSchemaSerializer(serializers.Serializer):
 
 class LoadPartnerSerializer(serializers.Serializer):
     url = serializers.URLField()
+
+
+class OrderCartSerializer(serializers.Serializer):
+    contact = serializers.IntegerField()
+    cart_item = serializers.IntegerField()
+
+
+class StateSerializer(serializers.Serializer):
+    order = serializers.IntegerField()
+    state = serializers.CharField()

@@ -13,7 +13,7 @@ from backend.models import ConfirmEmailToken, Category, Shop, ProductInfo, Cart,
 from backend.serializers import UserSerializer, CategorySerializer, ShopSerializer, ProductInfoSerializer, \
     CartItemSerializer, ContactsSerializer, OrderSerializer, OrderItemSerializer, ConfirmEmailSerializer, \
     LoginUserSerializer, TokenSerializer, CartSchemaSerializer, CartItemSchemaSerializer, \
-    LoadPartnerSerializer
+    LoadPartnerSerializer, OrderCartSerializer, StateSerializer
 from backend.signals import new_user_registered, password_reset_token_created, new_order_signal
 from rest_framework.authentication import authenticate
 from rest_framework.authtoken.models import Token
@@ -812,6 +812,41 @@ class ContactView(APIView):
         return JsonResponse({'Status': False, 'Error': contact_serializer.errors}, status=400)
 
 
+@extend_schema(tags=['User Order'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить информацию о заказах',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(OrderSerializer,
+                                                description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Order not found'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    post=extend_schema(
+        summary='Создаём заказ',
+        request=OrderCartSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='Create'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description='Not found'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request (something invalid)'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        },
+        examples=[
+            OpenApiExample(
+                'Post Example',
+                description='Create order from cart item user',
+                value=
+                {
+                    "contact": 2,
+                    "cart_item": [2, 4]
+                }
+            )
+        ]
+    )
+)
 class OrderView(APIView):
     """
     Класс для получения и размещения заказа пользователями
@@ -826,15 +861,18 @@ class OrderView(APIView):
         ).prefetch_related('ordered_items__product_info__product__category',
                            'ordered_items__product_info__product_parameters__parameter').select_related(
             'contacts').annotate(total_sum=Sum(F('ordered_items__quantity') * F(
-            'ordered_items__product_info__price'))).distinct()
+                'ordered_items__product_info__price'))).distinct()
 
         serializer = OrderSerializer(order, many=True)
 
         return JsonResponse({'Status': True, 'Order': serializer.data})
 
     def post(self, request, *args, **kwargs):
+        """
+        Создаём заказ с продуктами из корзины
+        """
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=401)
 
         if {'contact', 'cart_item'}.issubset(request.data):
             cart = Cart.objects.prefetch_related('products_info').get(user=request.user)
@@ -882,11 +920,44 @@ class OrderView(APIView):
             new_order_signal(sender=self.__class__, user_id=request.user.id)
             serializer = OrderItemSerializer(order_items, many=True).data
 
-            return JsonResponse({'Status': True, 'result': serializer})
+            return JsonResponse({'Status': True, 'result': serializer}, status=200)
 
-        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'})
+        return JsonResponse({'Status': False, 'Errors': 'All the necessary arguments are not stated'}, status=400)
 
 
+@extend_schema(tags=['Partner Order'])
+@extend_schema_view(
+    get=extend_schema(
+        summary='Получить информацию о заказе',
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    ),
+    patch=extend_schema(
+        summary='Изменить статус заказа',
+        description='Поле state имеет статусы: new, confirmed, assembled, sent, delivered, canceled',
+        request=StateSerializer,
+        examples=[
+            OpenApiExample(
+                'Request Example',
+                description='Example body request',
+                value=
+                {
+                    "order": 1,
+                    "state": "sent"
+                }
+            )
+        ],
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(description='OK'),
+            status.HTTP_401_UNAUTHORIZED: OpenApiResponse(description='Check your Token Authorization'),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(description='Bad request (something invalid)'),
+            status.HTTP_500_INTERNAL_SERVER_ERROR: OpenApiResponse(response=None)
+        }
+    )
+)
 class PartnerOrders(APIView):
     """
     Класс для получения заказов поставщиками
@@ -913,10 +984,10 @@ class PartnerOrders(APIView):
         Для изменения статуса заказа
         """
         if not request.user.is_authenticated:
-            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'Log in required'}, status=401)
 
         if request.user.type != 'shop':
-            return JsonResponse({'Status': False, 'Error': 'Only for partners'}, status=403)
+            return JsonResponse({'Status': False, 'Error': 'Only for partners'}, status=401)
 
         if {'order', 'state'}.issubset(request.data):
             state = request.data['state']
@@ -937,15 +1008,19 @@ class PartnerOrders(APIView):
             return JsonResponse({'Status': True, 'state': state})
 
         else:
-            return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'})
+            return JsonResponse({'Status': False, 'Error': 'All the necessary arguments are not stated'}, status=400)
 
 
+@extend_schema(tags=['Password Reset'])
 class PasswordReset(ResetPasswordRequestToken):
     """
     Класс для сброса пароля пользователя
     """
 
     def create(self, request, *args, **kwargs):
+        """
+        Создаём токен для востановления пароля
+        """
         if not request.user.is_authenticated:
             return JsonResponse({'Status': False, 'Error': 'Log in is required'})
 
@@ -962,6 +1037,7 @@ class PasswordReset(ResetPasswordRequestToken):
         return JsonResponse({'Status': False, 'Error': serializer.errors})
 
 
+@extend_schema(tags=['Password Reset'])
 class PasswordResetConfirm(ResetPasswordConfirm):
     """
     Класс для подтверждения сброса пароля
