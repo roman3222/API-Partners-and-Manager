@@ -29,12 +29,13 @@
    '''python manage.py runserver'''
 8. Откройте приложение в браузере по адресу [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 
-## Переменное окружение
+## Дополнительные настройки
+
 - Настройте переменные окружения в файле `.env`:
 
-  '''
-  POSTGRES_USER
-  POSTGRES_PASSWORD
-  POSTGRES_DB
-  '''
+    ```
+    POSTGRES_USER
+    POSTGRES_PASSWORD
+    POSTGRES_DB
+    ```
 
