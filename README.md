@@ -14,19 +14,56 @@
 
 ## Установка
 1. Склонируйте репозиторий:
-  '''git clone https://github.com/roman3222/API-Partners-and-Manager'''
+
+    ```bash
+    git clone https://github.com/ваш-логин/django-stripe-payment.git
+    cd django-stripe-payment
+    ```
+
 2. Создайте виртуальное окружение:
-  '''python -m venv env'''
+
+    ```bash
+    python -m venv venv
+    ```
+
 3. Активируйте виртуальное окружение:
-  '''source env/bin/activate'''
+
+    - Для Windows:
+
+        ```bash
+        venv\Scripts\activate
+        ```
+
+    - Для macOS/Linux:
+
+        ```bash
+        source venv/bin/activate
+        ```
+
 4. Установите зависимости:
-   '''pip install -r requirements.txt'''
-5. Примините миграции:
-   '''python manage.py migrate'''
+
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+5. Примените миграции:
+
+    ```bash
+    python manage.py migrate
+    ```
+
 6. Создайте суперпользователя:
-   '''python manage.py createsuperuser'''
+
+    ```bash
+    python manage.py createsuperuser
+    ```
+
 7. Запустите сервер:
-   '''python manage.py runserver'''
+
+    ```bash
+    python manage.py runserver
+    ```
+
 8. Откройте приложение в браузере по адресу [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 
 ## Дополнительные настройки
