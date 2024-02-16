@@ -16,8 +16,7 @@
 1. Склонируйте репозиторий:
 
     ```bash
-    git clone https://github.com/ваш-логин/django-stripe-payment.git
-    cd django-stripe-payment
+    git clone https://github.com/roman3222/API-Partners-and-Manager/tree/master
     ```
 
 2. Создайте виртуальное окружение:
@@ -37,7 +36,7 @@
     - Для macOS/Linux:
 
         ```bash
-        source venv/bin/activate
+        source env/bin/activate
         ```
 
 4. Установите зависимости:
