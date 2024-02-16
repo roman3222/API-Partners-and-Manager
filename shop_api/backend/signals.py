@@ -25,10 +25,9 @@ def new_user_registered_signal(sender, user_id, **kwargs):
 @receiver(new_order)
 def new_order_signal(sender, user_id, **kwargs):
     """
-     Сигнал отправки письма при изменении статуса заказа
-     """
+    Сигнал отправки письма при изменении статуса заказа
+    """
     user = User.objects.get(id=user_id)
     order = Order.objects.get(user=user)
 
     send_state_order.delay(user.username, order.state, user.email)
-
