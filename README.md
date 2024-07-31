@@ -1,77 +1,71 @@
-# API Сервис заказа товаров для розничных сетей
-## Описание
-Приложение предназначено для автоматизации закупок в розничной сети через REST API.
+# API Product ordering service for retail chains
+## Description
+The application is designed to automate purchases in a retail network via REST API.
 
-### Клиент
-* Делает ежедневные закупки по каталогу, в котором представлены товары от нескольких поставщиков.
-* В одном заказе можно указать товары от разных поставщиков.
-* Пользователь может авторизироваться, регистрироваться и восстанавливать пароль через API.
+### Client
+* Makes daily purchases from a catalog that includes items from multiple suppliers.
+* Products from different suppliers can be specified in one order.
+* User can authorize, register and recover password via API.
 
-### Поставщик
-* Через API информирует сервис об обновлении прайса.
-* Может включать и отключать прием заказов.
-* Может получать список оформленных заказов (с товарами из его прайса).
-
+### Supplier
+* Informs the service about price list updates via API.
+* Can enable and disable order acceptance.
+* Can receive a list of completed orders (with items from its price list).
 ## Установка
-1. Склонируйте репозиторий:
-
-    ```bash
+``bash
     git clone https://github.com/roman3222/API-Partners-and-Manager/tree/master
     ```
 
-2. Создайте виртуальное окружение:
+2. Create a virtual environment:
 
     ```bash
     python -m venv venv
     ```
 
-3. Активируйте виртуальное окружение:
+3. activate the virtual environment:
 
-    - Для Windows:
+    - For Windows:
 
         ```bash
         venv\Scripts\activate
         ```
 
-    - Для macOS/Linux:
+    - For macOS/Linux:
 
         ```bash
         source env/bin/activate
         ```
 
-4. Установите зависимости:
+4. Install dependencies:
 
-    ```bash
+    ````bash
     pip install -r requirements.txt
     ```
 
-5. Примените миграции:
+5. Apply migrations:
 
-    ```bash
+    ````bash
     python manage.py migrate
     ```
 
-6. Создайте суперпользователя:
+6. Create a superuser:
 
-    ```bash
+    ````bash
     python manage.py createsuperuser
     ```
 
-7. Запустите сервер:
+7. Start the server:
 
     ```bash
-    python manage.py runserver
-    ```
 
-8. Откройте приложение в браузере по адресу [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
+8. Open the application in a browser at [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 
-## Дополнительные настройки
+## Additional settings
 
-- Настройте переменные окружения в файле `.env`:
+- Configure the environment variables in the `.env` file:
 
     ```
     POSTGRES_USER
     POSTGRES_PASSWORD
     POSTGRES_DB
     ```
-
